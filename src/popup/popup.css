@@ -1,0 +1,263 @@
+/* Mirrors SkinAlyze app tokens (see tailwind.config.ts / globals.css) */
+
+:root {
+  --bg: #0b0f14;
+  --bg-soft: #0e131b;
+  --panel: #121a24;
+  --border: #1c2633;
+  --ink: #dbe3f1;
+  --ink-muted: #9aa9bf;
+  --accent: #ff8b2e;
+  --accent-hover: #ff9b42;
+  --pos: #22c55e;
+  --neg: #ef4444;
+  --radius: 14px;
+  --radius-sm: 10px;
+  --font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font: 13px var(--font);
+  background: var(--bg);
+  color: var(--ink);
+  min-width: 300px;
+  max-width: 340px;
+}
+
+.wrap {
+  padding: 14px 14px 10px;
+  background: radial-gradient(120% 80% at 50% -20%, rgba(255, 139, 46, 0.12), transparent 55%),
+    var(--bg);
+}
+
+h1 {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 2px;
+  color: var(--ink);
+}
+
+.sub {
+  color: var(--ink-muted);
+  margin: 0 0 12px;
+  font-size: 12px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  margin-bottom: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.panel-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-muted);
+  margin: 0 0 8px;
+}
+
+label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+
+input[type='text'] {
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-soft);
+  color: var(--ink);
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+input[type='text']:focus {
+  outline: none;
+  border-color: rgba(255, 139, 46, 0.45);
+  box-shadow: 0 0 0 1px rgba(255, 139, 46, 0.18);
+}
+
+input[type='number'] {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-soft);
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+.toggle-row:last-child {
+  margin-bottom: 0;
+}
+
+.toggle-row input[type='checkbox'] {
+  margin-top: 2px;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+
+.toggle-row span strong {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.toggle-row span small {
+  display: block;
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+
+.status-line {
+  margin: 0 0 4px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.steam-line {
+  margin: 0 0 10px;
+  font-size: 11px;
+  color: var(--ink-muted);
+  line-height: 1.4;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+button.btn {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: linear-gradient(180deg, var(--accent-hover), var(--accent));
+  color: #0b0f14;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+  transition: filter 0.15s ease, opacity 0.15s ease;
+}
+
+button.btn:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+button.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button.btn-secondary {
+  background: var(--bg-soft);
+  color: var(--ink);
+  border-color: var(--border);
+  font-weight: 600;
+}
+
+#msg {
+  margin-top: 10px;
+  font-size: 11px;
+  line-height: 1.45;
+  min-height: 1.2em;
+  color: var(--pos);
+}
+
+#msg.err {
+  color: var(--neg);
+}
+
+#msg.warn {
+  color: var(--accent);
+}
+
+.footer {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.footer a {
+  color: var(--accent);
+  font-size: 11px;
+  text-decoration: none;
+}
+
+.footer a:hover {
+  text-decoration: underline;
+}
+
+.progress-panel {
+  margin-bottom: 10px;
+  padding: 10px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.progress-panel[hidden] {
+  display: none !important;
+}
+
+.progress-row[hidden] {
+  display: none !important;
+}
+
+.progress-row + .progress-row {
+  margin-top: 10px;
+}
+
+.progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), #ff6b00);
+  transition: width 0.25s ease;
+}
+
+.progress-label {
+  margin: 0;
+  font-size: 11px;
+  color: var(--ink-muted);
+  line-height: 1.35;
+}
+
+.interval-hint {
+  margin: 6px 0 0;
+  font-size: 10px;
+  color: var(--ink-muted);
+}

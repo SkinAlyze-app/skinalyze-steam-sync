@@ -1,0 +1,58 @@
+#skinalyze-inventory-banner {
+  margin: 8px 0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: system-ui, sans-serif;
+}
+#skinalyze-inventory-banner.skinalyze-banner--warn {
+  background: rgba(180, 120, 0, 0.25);
+  border: 1px solid rgba(255, 200, 80, 0.5);
+  color: #ffe8b0;
+}
+#skinalyze-inventory-banner.skinalyze-banner--info {
+  background: rgba(40, 80, 160, 0.35);
+  border: 1px solid rgba(120, 170, 255, 0.45);
+  color: #d4e4ff;
+}
+
+.skinalyze-badge {
+  box-sizing: border-box;
+  contain: layout style;
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  z-index: 5;
+  pointer-events: none;
+  font-family: system-ui, sans-serif;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.skinalyze-badge--linked {
+  background: rgba(34, 197, 94, 0.95);
+  color: #052e14;
+}
+.skinalyze-badge--unlinked {
+  background: rgba(251, 146, 60, 0.95);
+  color: #3b1f06;
+}
+.skinalyze-badge--pending_review {
+  background: rgba(234, 179, 8, 0.95);
+  color: #2a2000;
+}
+.skinalyze-badge--conflict {
+  background: rgba(239, 68, 68, 0.95);
+  color: #1f0505;
+}
+.skinalyze-badge--unknown {
+  background: rgba(120, 120, 120, 0.95);
+  color: #111;
+}

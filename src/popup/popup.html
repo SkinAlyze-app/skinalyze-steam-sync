@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SkinAlyze Sync</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="wrap">
+      <h1>SkinAlyze Sync</h1>
+      <p class="sub">Steam inventory sync</p>
+
+      <section id="pair-section" class="panel">
+        <p class="panel-title">Pair extension</p>
+        <label for="code">Pairing code</label>
+        <input id="code" type="text" maxlength="8" autocomplete="off" placeholder="From Settings → Integrations" />
+        <button id="pair-btn" type="button" class="btn">Pair</button>
+      </section>
+
+      <section id="status-section" class="panel" hidden>
+        <p id="status-line" class="status-line"></p>
+        <p id="steam-line" class="steam-line"></p>
+
+        <div id="progress-panel" class="progress-panel" hidden>
+          <div id="inv-progress-row" class="progress-row" hidden>
+            <div class="progress-track">
+              <div id="inv-progress-fill" class="progress-fill"></div>
+            </div>
+            <p id="inv-progress-label" class="progress-label"></p>
+          </div>
+          <div id="to-progress-row" class="progress-row" hidden>
+            <div class="progress-track">
+              <div id="to-progress-fill" class="progress-fill"></div>
+            </div>
+            <p id="to-progress-label" class="progress-label"></p>
+          </div>
+        </div>
+
+        <p class="panel-title">Actions</p>
+        <div class="actions">
+          <button id="detect-btn" type="button" class="btn btn-secondary">Check Steam login</button>
+          <button id="manual-sync-btn" type="button" class="btn">Manual sync</button>
+        </div>
+        <p id="msg" class="small"></p>
+      </section>
+
+      <p class="footer">
+        <a id="privacy-link" href="#" target="_blank" rel="noreferrer">Privacy</a>
+      </p>
+    </main>
+    <script src="../popup.js"></script>
+  </body>
+</html>

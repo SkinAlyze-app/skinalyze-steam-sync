@@ -1,0 +1,50 @@
+{
+  "name": "skinalyze-sync-extension",
+  "version": "0.1.0",
+  "description": "SkinAlyze Sync — Chrome MV3 extension to sync Steam CS2 inventory and trade data with your SkinAlyze account (open source for transparency).",
+  "license": "MIT",
+  "keywords": [
+    "skinalyze",
+    "cs2",
+    "steam",
+    "chrome-extension",
+    "manifest-v3"
+  ],
+  "homepage": "https://skinalyze.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SkinAlyze-app/skinalyze-steam-sync.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SkinAlyze-app/skinalyze-steam-sync/issues"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "scripts": {
+    "build": "webpack --mode production",
+    "watch": "webpack --mode development --watch",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx scripts/run-tests.ts",
+    "icons": "node scripts/generate-icons.mjs",
+    "ci": "npm run typecheck && npm run test && npm run build",
+    "ci:prod": "npm run typecheck && npm run test && node scripts/ci-prod.mjs"
+  },
+  "dependencies": {
+    "@csfloat/cs2-inspect-serializer": "^1.1.6",
+    "buffer": "^6.0.3"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.287",
+    "copy-webpack-plugin": "^12.0.2",
+    "css-loader": "^7.1.2",
+    "mini-css-extract-plugin": "^2.9.2",
+    "ts-loader": "^9.5.2",
+    "tsx": "^4.20.6",
+    "typescript": "5.4.5",
+    "webpack": "^5.97.1",
+    "webpack-cli": "^6.0.1"
+  }
+}
