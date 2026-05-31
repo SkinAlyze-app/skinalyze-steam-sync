@@ -4,6 +4,7 @@ import { buildExtensionApiUrl } from '../src/shared/api-url';
 
 export function runApiUrlTests(): void {
   assert.equal(buildExtensionApiUrl('https://skinalyze.app', '/api/x'), 'https://skinalyze.app/api/x');
+  assert.equal(buildExtensionApiUrl('https://www.skinalyze.app', '/api/x'), 'https://www.skinalyze.app/api/x');
   assert.equal(buildExtensionApiUrl('https://skinalyze.app/', '/api/x'), 'https://skinalyze.app/api/x');
   assert.equal(buildExtensionApiUrl('https://skinalyze.app/', 'api/x'), 'https://skinalyze.app/api/x');
   assert.equal(buildExtensionApiUrl('http://localhost:3000', 'foo'), 'http://localhost:3000/foo');

@@ -1,5 +1,5 @@
 /**
- * Generates icon16.png, icon48.png, icon128.png from icons/icon.svg.
+ * Generates icon16.png, icon48.png, icon128.png from icons/logo.png.
  * Run: node scripts/generate-icons.mjs (requires sharp: npm install --no-save sharp)
  */
 import { readFileSync, writeFileSync } from 'fs';
@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
-const svgPath = join(root, 'icons', 'icon.svg');
+const logoPath = join(root, 'icons', 'logo.png');
 const sizes = [16, 48, 128];
 
 let sharp;
@@ -19,9 +19,9 @@ try {
   process.exit(1);
 }
 
-const svg = readFileSync(svgPath);
+const logo = readFileSync(logoPath);
 for (const size of sizes) {
   const out = join(root, 'icons', `icon${size}.png`);
-  await sharp(svg).resize(size, size).png().toFile(out);
+  await sharp(logo).resize(size, size).png().toFile(out);
   console.log('wrote', out);
 }

@@ -24,7 +24,7 @@ Apply the SkinAlyze app migrations for browser extension support (pairing tables
 1. Log in at https://skinalyze.app
 2. **Settings → Integrations** — Browser extension section visible
 3. Link Steam → **Generate pairing code**
-4. Install from [GitHub Releases](https://github.com/SkinAlyze-app/skinalyze-steam-sync/releases) (build with `SKINALYZE_API_ORIGIN=https://skinalyze.app`)
+4. Install from [GitHub Releases](https://github.com/SkinAlyze-app/skinalyze-steam-sync/releases) (build with `SKINALYZE_API_ORIGIN=https://www.skinalyze.app`)
 5. Pair in extension popup → **Manual sync**
 6. Confirm synced data in SkinAlyze (Steam inventory / trade views)
 

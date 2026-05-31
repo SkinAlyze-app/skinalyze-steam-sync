@@ -15,7 +15,7 @@ Prerequisites: Node **20+**, npm **10+**.
 npm ci
 npm run typecheck
 npm test
-SKINALYZE_API_ORIGIN=https://skinalyze.app npm run build
+SKINALYZE_API_ORIGIN=https://www.skinalyze.app npm run build
 ```
 
 Or use the production CI script (same checks):
@@ -28,7 +28,7 @@ npm run ci:prod
 
 Verify **`dist/manifest.json`**:
 
-- `host_permissions` includes `https://skinalyze.app/*` for production releases.
+- `host_permissions` includes `https://www.skinalyze.app/*` for production releases.
 - `https://steamcommunity.com/*` and `https://api.steampowered.com/*` are present.
 - `permissions` match what you intend to ship.
 
