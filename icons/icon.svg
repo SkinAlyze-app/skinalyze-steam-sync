@@ -1,5 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="SkinAlyze">
-  <rect width="128" height="128" rx="26" fill="#0b0f14"/>
-  <rect x="8" y="8" width="112" height="112" rx="22" fill="none" stroke="#ff7a1a" stroke-width="4" opacity="0.35"/>
-  <path fill="#ff7a1a" d="M38 36h28c18 0 30 10 30 26 0 14-8 22-22 24l22 26H72L52 88V36zm28 38c10 0 16-5 16-14s-6-14-16-14H52v28h14z"/>
-</svg>

@@ -20,14 +20,14 @@ npm ci
 | `npm run typecheck` | TypeScript compile check |
 | `npm test` | Node-based unit/smoke tests |
 | `npm run build` | Webpack build to `dist/` (default API origin `http://localhost:3000`) |
-| `npm run ci:prod` | typecheck + test + production build for `https://skinalyze.app` |
-| `npm run icons` | Regenerate `icons/icon{16,48,128}.png` from `icons/icon.svg` (needs `sharp`: `npm install --no-save sharp`) |
+| `npm run ci:prod` | typecheck + test + production build for `https://www.skinalyze.app` |
+| `npm run icons` | Regenerate `icons/icon{16,48,128}.png` from `icons/logo.png` (needs `sharp`: `npm install --no-save sharp`) |
 | `npm run ci` | typecheck, tests, and local-default build |
 
 On Windows, for a one-off production build you can also set:
 
 ```powershell
-$env:SKINALYZE_API_ORIGIN="https://skinalyze.app"; npm run build
+$env:SKINALYZE_API_ORIGIN="https://www.skinalyze.app"; npm run build
 ```
 
 ## Project layout

@@ -2,7 +2,7 @@
 
 This document lists every SkinAlyze HTTP endpoint used by **SkinAlyze Sync** in this repository, how they are authenticated, and what classes of data are transmitted.
 
-Base URL: whatever you pass as `SKINALYZE_API_ORIGIN` at **build time** (see [README.md](../README.md)). Production is typically `https://skinalyze.app`. Paths below are relative to that origin.
+Base URL: whatever you pass as `SKINALYZE_API_ORIGIN` at **build time** (see [README.md](../README.md)). Production is typically `https://www.skinalyze.app`. Paths below are relative to that origin.
 
 Authentication: after pairing, requests send `Authorization: Bearer <token>` except pairing confirm, which is unauthenticated aside from the one-time code.
 

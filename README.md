@@ -53,7 +53,7 @@ Once paired, sync runs **automatically** — you do not need to open the popup e
 
 - `https://steamcommunity.com/*` — Steam inventory pages and logged-in Steam fetches.
 - `https://api.steampowered.com/*` — Steam Web API for trade offers/history.
-- Your SkinAlyze API origin (build-time, production: `https://skinalyze.app`) — `/api/extension/*` calls.
+- Your SkinAlyze API origin (build-time, production: `https://www.skinalyze.app`) - `/api/extension/*` calls.
 
 ## Build from source
 
@@ -67,10 +67,10 @@ npm ci
 
 ```bash
 # macOS / Linux
-SKINALYZE_API_ORIGIN=https://skinalyze.app npm run build
+SKINALYZE_API_ORIGIN=https://www.skinalyze.app npm run build
 
 # Windows PowerShell
-$env:SKINALYZE_API_ORIGIN="https://skinalyze.app"; npm run build
+$env:SKINALYZE_API_ORIGIN="https://www.skinalyze.app"; npm run build
 ```
 
 Or:
