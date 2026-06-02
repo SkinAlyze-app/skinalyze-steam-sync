@@ -6,13 +6,15 @@ This repository is the **public source** for SkinAlyze Sync. You can read the co
 
 Repository: [github.com/SkinAlyze-app/skinalyze-steam-sync](https://github.com/SkinAlyze-app/skinalyze-steam-sync)
 
+Download: [SkinAlyze Sync on the Chrome Web Store](https://chromewebstore.google.com/detail/skinalyze-sync/nmapmijejpgeeoffklgmofohciahcagg)
+
 ## Why open source
 
 - **Transparency**: audit permissions, network calls, and payloads.
 - **Trust**: pairing uses a short code from SkinAlyze; the extension stores a SkinAlyze-issued bearer token locally (see [PRIVACY.md](./PRIVACY.md)).
 - **Reproducible builds**: `npm ci` and `npm run build` produce the `dist/` layout documented below.
 
-Chrome Web Store distribution is **deferred** during beta. Release zips from [GitHub Releases](https://github.com/SkinAlyze-app/skinalyze-steam-sync/releases) are the supported install path for testers.
+Chrome Web Store distribution is available from the [SkinAlyze Sync listing](https://chromewebstore.google.com/detail/skinalyze-sync/nmapmijejpgeeoffklgmofohciahcagg). Release zips from [GitHub Releases](https://github.com/SkinAlyze-app/skinalyze-steam-sync/releases) remain available for testers who need sideloaded builds.
 
 ## What it does
 
