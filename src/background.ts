@@ -5,6 +5,7 @@ import { handleDetectSteam } from '@/lib/bridge/handlers/detect_steam';
 import { handleSyncInventory } from '@/lib/bridge/handlers/sync_inventory';
 import { handleGetBadges } from '@/lib/bridge/handlers/get_badge_data';
 import { handleSyncTradeOffers } from '@/lib/bridge/handlers/sync_trade_offers';
+import { handleSyncMarketHistory } from '@/lib/bridge/handlers/sync_market_history';
 import { applyPeriodicSyncAlarm, registerPeriodicSync, onAlarm } from '@/lib/alarms';
 import { getAutomationSettings, getStorage } from '@/lib/storage';
 import { getHydratedSyncProgress } from '@/lib/sync-progress';
@@ -12,6 +13,7 @@ import type { ExtensionMessage, ExtensionResponse } from '@/shared/types';
 
 let lastHybridInv = 0;
 let lastHybridOffers = 0;
+let lastHybridMarketHistory = 0;
 
 async function dispatch(msg: ExtensionMessage): Promise<ExtensionResponse> {
   try {
@@ -43,12 +45,16 @@ async function dispatch(msg: ExtensionMessage): Promise<ExtensionResponse> {
         return { ok: true, data };
       }
       case 'GET_BADGES': {
-        const r = await handleGetBadges(msg.assetIds);
+        const r = await handleGetBadges(msg.assetIds, msg.steamId64);
         if ('error' in r) return { ok: false, error: r.error };
         return { ok: true, data: r };
       }
       case 'SYNC_TRADE_OFFERS': {
         const r = await handleSyncTradeOffers();
+        return r.ok ? { ok: true, data: r } : { ok: false, error: r.error };
+      }
+      case 'SYNC_MARKET_HISTORY': {
+        const r = await handleSyncMarketHistory();
         return r.ok ? { ok: true, data: r } : { ok: false, error: r.error };
       }
       default:
@@ -99,11 +105,12 @@ chrome.runtime.onStartup.addListener(() => {
 
 onAlarm(async () => {
   const st = await getStorage();
-  if (!st.token || !st.steamExpected) return;
+  if (st.pairings.length === 0) return;
   const s = await getAutomationSettings();
   if (!s.autoSyncEnabled) return;
   if (s.autoSyncInventory) await handleSyncInventory();
   if (s.autoSyncOffers) await handleSyncTradeOffers();
+  if (s.autoSyncMarketHistory) await handleSyncMarketHistory();
 });
 
 chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
@@ -115,11 +122,12 @@ chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
     const auto = await getAutomationSettings();
     if (!auto.autoSyncEnabled || !auto.hybridOnActivePage) return;
     const st = await getStorage();
-    if (!st.token || !st.steamExpected) return;
+    if (st.pairings.length === 0) return;
 
     const now = Date.now();
     const invPath = /steamcommunity\.com\/(id|profiles)\/[^/]+\/inventory/i.test(url);
     const offersPath = /steamcommunity\.com\/(id|profiles)\/[^/]+\/tradeoffers/i.test(url);
+    const marketPath = /steamcommunity\.com\/market\/?(\?|#|$)/i.test(url);
 
     if (auto.autoSyncInventory && invPath) {
       if (now - lastHybridInv < auto.hybridCooldownMs) return;
@@ -130,6 +138,11 @@ chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
       if (now - lastHybridOffers < auto.hybridCooldownMs) return;
       lastHybridOffers = now;
       await handleSyncTradeOffers();
+    }
+    if (auto.autoSyncMarketHistory && marketPath) {
+      if (now - lastHybridMarketHistory < auto.hybridCooldownMs) return;
+      lastHybridMarketHistory = now;
+      await handleSyncMarketHistory();
     }
   })();
 });

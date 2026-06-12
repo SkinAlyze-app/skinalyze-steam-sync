@@ -1,14 +1,15 @@
 import { apiPost, messageFromExtensionApiBody } from '@/lib/api';
-import { getStorage } from '@/lib/storage';
+import { getActivePairing, getPairingForSteamId } from '@/lib/storage';
 
 export async function handleGetBadges(
-  assetIds: string[]
+  assetIds: string[],
+  steamId64?: string | null
 ): Promise<{ statuses: Record<string, string> } | { error: string }> {
-  const s = await getStorage();
-  if (!s.token) {
+  const pairing = steamId64 ? await getPairingForSteamId(steamId64) : await getActivePairing();
+  if (!pairing) {
     return { error: 'Not paired' };
   }
-  const res = await apiPost('/api/extension/inventory/status', s.token, { asset_ids: assetIds });
+  const res = await apiPost('/api/extension/inventory/status', pairing.token, { asset_ids: assetIds });
   if (!res.ok) {
     return { error: messageFromExtensionApiBody(res.data, res.status) };
   }

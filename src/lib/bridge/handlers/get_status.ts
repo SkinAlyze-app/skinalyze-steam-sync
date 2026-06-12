@@ -8,6 +8,8 @@ export async function handleGetStatus(): Promise<{
   last_steam_detected: string | null;
   steam_match: boolean | null;
   last_error: string | null;
+  paired_steam_ids: string[];
+  pairing_count: number;
 }> {
   const s = await getStorage();
   if (!s.token) {
@@ -19,8 +21,15 @@ export async function handleGetStatus(): Promise<{
       last_steam_detected: s.lastSteamDetected || null,
       steam_match: null,
       last_error: s.lastError,
+      paired_steam_ids: s.pairedSteamIds,
+      pairing_count: s.pairings.length,
     };
   }
+
+  const steamMatch =
+    s.lastSteamDetected && s.pairedSteamIds.length > 0
+      ? s.pairedSteamIds.includes(s.lastSteamDetected)
+      : null;
 
   return {
     paired: true,
@@ -28,8 +37,9 @@ export async function handleGetStatus(): Promise<{
     steam_expected: s.steamExpected,
     last_sync_at: s.lastSyncAt,
     last_steam_detected: s.lastSteamDetected || null,
-    steam_match:
-      s.lastSteamDetected && s.steamExpected ? s.lastSteamDetected === s.steamExpected : null,
+    steam_match: steamMatch,
     last_error: s.lastError,
+    paired_steam_ids: s.pairedSteamIds,
+    pairing_count: s.pairings.length,
   };
 }

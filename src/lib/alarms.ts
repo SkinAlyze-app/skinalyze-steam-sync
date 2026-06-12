@@ -12,7 +12,7 @@ export const PERIODIC_SYNC_INTERVAL_MINUTES = 20;
 export async function applyPeriodicSyncAlarm(): Promise<void> {
   await chrome.alarms.clear(PERIODIC_SYNC_ALARM);
   const st = await getStorage();
-  if (!st.token || !st.steamExpected) return;
+  if (st.pairings.length === 0) return;
   await chrome.alarms.create(PERIODIC_SYNC_ALARM, { periodInMinutes: PERIODIC_SYNC_INTERVAL_MINUTES });
 }
 
