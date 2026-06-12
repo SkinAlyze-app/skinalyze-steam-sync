@@ -1,9 +1,12 @@
 import { API_ORIGIN } from '@/shared/constants';
 import {
   friendlyInventorySyncError,
+  friendlyMarketHistorySyncError,
   friendlyTradeOffersSyncError,
+  isProgressSliceActiveMh,
   isProgressSliceActiveInv,
   isProgressSliceActiveTo,
+  isProgressSliceVisibleMh,
   isProgressSliceVisibleInv,
   isProgressSliceVisibleTo,
 } from '@/lib/sync-progress';
@@ -16,7 +19,7 @@ function send<T>(msg: object): Promise<T> {
   });
 }
 
-type ProgressSlice = SyncProgressState['inventory'] | SyncProgressState['tradeOffers'];
+type ProgressSlice = SyncProgressState['inventory'] | SyncProgressState['tradeOffers'] | SyncProgressState['marketHistory'];
 
 type SyncProgressPayload = SyncProgressState;
 
@@ -38,6 +41,9 @@ const invProgressLabel = document.getElementById('inv-progress-label')!;
 const toProgressRow = document.getElementById('to-progress-row')!;
 const toProgressFill = document.getElementById('to-progress-fill')!;
 const toProgressLabel = document.getElementById('to-progress-label')!;
+const mhProgressRow = document.getElementById('mh-progress-row')!;
+const mhProgressFill = document.getElementById('mh-progress-fill')!;
+const mhProgressLabel = document.getElementById('mh-progress-label')!;
 
 privacyLink.href = `${API_ORIGIN.replace(/\/$/, '')}/privacy`;
 
@@ -83,23 +89,26 @@ function applyProgressRow(
   labelEl.textContent = slice.label || slice.phase;
 }
 
-function refreshProgressVisibility(invActive: boolean, toActive: boolean): void {
-  const any = invActive || toActive;
+function refreshProgressVisibility(invActive: boolean, toActive: boolean, mhActive: boolean): void {
+  const any = invActive || toActive || mhActive;
   progressPanel.hidden = !any;
 }
 
-function startProgressPolling(which: 'inv' | 'offers' | 'both'): ReturnType<typeof setInterval> {
+function startProgressPolling(which: 'inv' | 'offers' | 'market' | 'both'): ReturnType<typeof setInterval> {
   return window.setInterval(async () => {
     const res = await send<ExtensionResponse>({ type: 'GET_SYNC_PROGRESS' });
     if (!res.ok || !res.data) return;
     const d = res.data as SyncProgressPayload;
     const invOn = which === 'inv' || which === 'both';
     const toOn = which === 'offers' || which === 'both';
+    const mhOn = which === 'market' || which === 'both';
     applyProgressRow(invProgressRow, invProgressFill, invProgressLabel, d.inventory, invOn);
     applyProgressRow(toProgressRow, toProgressFill, toProgressLabel, d.tradeOffers, toOn);
+    applyProgressRow(mhProgressRow, mhProgressFill, mhProgressLabel, d.marketHistory, mhOn);
     refreshProgressVisibility(
       invOn && isProgressSliceVisibleInv(d.inventory),
-      toOn && isProgressSliceVisibleTo(d.tradeOffers)
+      toOn && isProgressSliceVisibleTo(d.tradeOffers),
+      mhOn && isProgressSliceVisibleMh(d.marketHistory)
     );
   }, 220);
 }
@@ -114,15 +123,18 @@ async function hydrateProgressOnOpen(): Promise<void> {
 
   const invVis = isProgressSliceVisibleInv(d.inventory);
   const toVis = isProgressSliceVisibleTo(d.tradeOffers);
+  const mhVis = isProgressSliceVisibleMh(d.marketHistory);
   const invRun = isProgressSliceActiveInv(d.inventory);
   const toRun = isProgressSliceActiveTo(d.tradeOffers);
+  const mhRun = isProgressSliceActiveMh(d.marketHistory);
 
   applyProgressRow(invProgressRow, invProgressFill, invProgressLabel, d.inventory, true);
   applyProgressRow(toProgressRow, toProgressFill, toProgressLabel, d.tradeOffers, true);
-  refreshProgressVisibility(invVis, toVis);
-  setActionBusy(invRun || toRun);
+  applyProgressRow(mhProgressRow, mhProgressFill, mhProgressLabel, d.marketHistory, true);
+  refreshProgressVisibility(invVis, toVis, mhVis);
+  setActionBusy(invRun || toRun || mhRun);
 
-  if (!invVis && !toVis) {
+  if (!invVis && !toVis && !mhVis) {
     hideAllProgress();
     return;
   }
@@ -133,15 +145,18 @@ async function hydrateProgressOnOpen(): Promise<void> {
     const p = r.data as SyncProgressPayload;
     const iv = isProgressSliceVisibleInv(p.inventory);
     const tv = isProgressSliceVisibleTo(p.tradeOffers);
+    const mv = isProgressSliceVisibleMh(p.marketHistory);
     const ir = isProgressSliceActiveInv(p.inventory);
     const tr = isProgressSliceActiveTo(p.tradeOffers);
+    const mr = isProgressSliceActiveMh(p.marketHistory);
 
     applyProgressRow(invProgressRow, invProgressFill, invProgressLabel, p.inventory, true);
     applyProgressRow(toProgressRow, toProgressFill, toProgressLabel, p.tradeOffers, true);
-    refreshProgressVisibility(iv, tv);
-    setActionBusy(ir || tr);
+    applyProgressRow(mhProgressRow, mhProgressFill, mhProgressLabel, p.marketHistory, true);
+    refreshProgressVisibility(iv, tv, mv);
+    setActionBusy(ir || tr || mr);
 
-    if (!iv && !tv) {
+    if (!iv && !tv && !mv) {
       stopResumePoll();
       hideAllProgress();
       setActionBusy(false);
@@ -153,9 +168,11 @@ async function hydrateProgressOnOpen(): Promise<void> {
 function hideAllProgress(): void {
   invProgressRow.hidden = true;
   toProgressRow.hidden = true;
+  mhProgressRow.hidden = true;
   progressPanel.hidden = true;
   invProgressFill.style.width = '0%';
   toProgressFill.style.width = '0%';
+  mhProgressFill.style.width = '0%';
 }
 
 async function refreshUi(): Promise<void> {
@@ -176,6 +193,8 @@ async function refreshUi(): Promise<void> {
     last_steam_detected?: string | null;
     steam_match?: boolean | null;
     last_error?: string | null;
+    paired_steam_ids?: string[];
+    pairing_count?: number;
   };
 
   if (!d.paired) {
@@ -187,7 +206,11 @@ async function refreshUi(): Promise<void> {
   pairSection.hidden = true;
   statusSection.hidden = false;
   statusLine.textContent = `Paired${d.user_handle ? ` as ${d.user_handle}` : ''}`;
-  let steamText = `Linked Steam ID: ${d.steam_expected ?? '—'}`;
+  const pairedSteamIds = d.paired_steam_ids ?? [];
+  let steamText =
+    pairedSteamIds.length > 1
+      ? `Linked Steam IDs: ${pairedSteamIds.join(', ')}`
+      : `Linked Steam ID: ${d.steam_expected ?? pairedSteamIds[0] ?? '—'}`;
   if (d.last_sync_at) {
     steamText += ` · Last sync: ${new Date(d.last_sync_at).toLocaleString()}`;
   }
@@ -243,7 +266,7 @@ detectBtn.addEventListener('click', async () => {
 manualSyncBtn.addEventListener('click', async () => {
   stopResumePoll();
   hideAllProgress();
-  setMsg('Starting manual sync (inventory, then trade offers)…');
+  setMsg('Starting manual sync (inventory, trade offers, then market history)…');
   setActionBusy(true);
   const poll = startProgressPolling('both');
   try {
@@ -276,7 +299,20 @@ manualSyncBtn.addEventListener('click', async () => {
       return;
     }
     const toData = toRes.data as { count?: number };
-    setMsg(`${invSummary} Trade offers: synced (${toData.count ?? 0}).`);
+    const toSummary = `Trade offers: synced (${toData.count ?? 0}).`;
+
+    const mhRes = await send<ExtensionResponse>({ type: 'SYNC_MARKET_HISTORY' });
+    if (!mhRes.ok) {
+      setMsg(
+        `${invSummary} ${toSummary} Market history: ${friendlyMarketHistorySyncError((mhRes as { error?: string }).error || 'Sync failed')}`,
+        true
+      );
+      return;
+    }
+    const mhData = mhRes.data as { count?: number; buys_created?: number; sells_matched?: number };
+    setMsg(
+      `${invSummary} ${toSummary} Market history: synced (${mhData.count ?? 0}; buys ${mhData.buys_created ?? 0}, sells ${mhData.sells_matched ?? 0}).`
+    );
   } finally {
     clearInterval(poll);
     hideAllProgress();

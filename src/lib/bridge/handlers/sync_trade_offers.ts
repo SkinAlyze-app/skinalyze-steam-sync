@@ -1,6 +1,6 @@
 import { apiPost, messageFromExtensionApiBody } from '@/lib/api';
 import { fetchTradeOffersAndHistoryForSync } from '@/lib/steam-trade';
-import { getStorage, setLastError } from '@/lib/storage';
+import { getPairingForSteamId, getPairings, setLastError } from '@/lib/storage';
 import { detectLoggedInSteamId64 } from '@/lib/steam-detect';
 import {
   friendlyTradeOffersSyncError,
@@ -30,8 +30,8 @@ function chunkArray<T>(arr: T[], size: number): T[][] {
 export async function handleSyncTradeOffers(): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
   resetTradeOffersSyncProgressIdle();
 
-  const s = await getStorage();
-  if (!s.token || !s.steamExpected) {
+  const pairings = await getPairings();
+  if (pairings.length === 0) {
     return { ok: false, error: 'Not paired' };
   }
 
@@ -53,10 +53,11 @@ export async function handleSyncTradeOffers(): Promise<{ ok: true; count: number
   try {
     setTradeOffersSyncProgress('checking_steam');
     const detected = await detectLoggedInSteamId64().catch(() => null);
-    if (detected !== s.steamExpected) {
+    const pairing = await getPairingForSteamId(detected);
+    if (!pairing) {
       return finishFail(
         detected
-          ? 'Wrong Steam account logged in. Log in as your linked account.'
+          ? 'This Steam account is not paired with SkinAlyze. Pair it in Settings → Integrations.'
           : 'Not logged into Steam in this browser.'
       );
     }
@@ -111,7 +112,7 @@ export async function handleSyncTradeOffers(): Promise<{ ok: true; count: number
 
       const idem = randomIdem('to');
       const body: Record<string, unknown> = {
-        steam_id64: s.steamExpected,
+        steam_id64: pairing.steam_id64,
         offers: offerSlice,
         trade_history: historySlice,
         idempotency_key: idem,
@@ -140,7 +141,7 @@ export async function handleSyncTradeOffers(): Promise<{ ok: true; count: number
         chunk_size: UPLOAD_CHUNK,
       };
 
-      const res = await apiPost('/api/extension/trade-offers/sync', s.token, body);
+      const res = await apiPost('/api/extension/trade-offers/sync', pairing.token, body);
 
       if (!res.ok) {
         const err = messageFromExtensionApiBody(res.data, res.status);

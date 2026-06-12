@@ -16,6 +16,10 @@ export async function handleDetectSteam(): Promise<{
   await setLastSteamDetected(detected);
   const expected = s.steamExpected;
   const match =
-    expected && detected ? expected === detected : expected && !detected ? false : null;
+    detected && s.pairedSteamIds.length > 0
+      ? s.pairedSteamIds.includes(detected)
+      : expected && !detected
+        ? false
+        : null;
   return { steam_id64: detected, expected, match };
 }

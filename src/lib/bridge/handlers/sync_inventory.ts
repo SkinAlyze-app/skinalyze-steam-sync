@@ -1,6 +1,6 @@
 import { apiPost, messageFromExtensionApiBody } from '@/lib/api';
 import { fetchCs2Inventory } from '@/lib/steam';
-import { getStorage, setLastSyncAt, setLastError } from '@/lib/storage';
+import { getPairingForSteamId, getPairings, setLastSyncAt, setLastError } from '@/lib/storage';
 import { detectLoggedInSteamId64 } from '@/lib/steam-detect';
 import {
   friendlyInventorySyncError,
@@ -18,8 +18,8 @@ const IDLE_RESET_MS = 1400;
 export async function handleSyncInventory(): Promise<{ ok: true; data: unknown } | { ok: false; error: string }> {
   resetInventorySyncProgressIdle();
 
-  const s = await getStorage();
-  if (!s.token || !s.steamExpected) {
+  const pairings = await getPairings();
+  if (pairings.length === 0) {
     return { ok: false, error: 'Not paired' };
   }
 
@@ -47,17 +47,18 @@ export async function handleSyncInventory(): Promise<{ ok: true; data: unknown }
     } catch {
       detected = null;
     }
-    if (detected !== s.steamExpected) {
+    const pairing = await getPairingForSteamId(detected);
+    if (!pairing) {
       const msg =
         !detected
           ? 'Not logged into Steam in this browser.'
-          : 'Wrong Steam account logged in. Log in as your linked account.';
+          : 'This Steam account is not paired with SkinAlyze. Pair it in Settings → Integrations.';
       return finishFail(msg);
     }
 
     let items;
     try {
-      items = await fetchCs2Inventory(s.steamExpected);
+      items = await fetchCs2Inventory(pairing.steam_id64);
     } catch (e) {
       const raw = e instanceof Error ? e.message : 'Inventory fetch failed';
       return finishFail(raw);
@@ -65,8 +66,8 @@ export async function handleSyncInventory(): Promise<{ ok: true; data: unknown }
 
     setInventorySyncProgress('uploading_inventory');
     const idem = randomIdem('inv');
-    const res = await apiPost('/api/extension/inventory/sync', s.token, {
-      steam_id64: s.steamExpected,
+    const res = await apiPost('/api/extension/inventory/sync', pairing.token, {
+      steam_id64: pairing.steam_id64,
       items,
       idempotency_key: idem,
     });

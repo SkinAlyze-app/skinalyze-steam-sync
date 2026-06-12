@@ -50,8 +50,9 @@ export type ExtensionMessage =
   | { type: 'DETECT_STEAM' }
   | { type: 'SYNC_INVENTORY' }
   | { type: 'GET_SYNC_PROGRESS' }
-  | { type: 'GET_BADGES'; assetIds: string[] }
+  | { type: 'GET_BADGES'; assetIds: string[]; steamId64?: string | null }
   | { type: 'SYNC_TRADE_OFFERS' }
+  | { type: 'SYNC_MARKET_HISTORY' }
   | { type: 'EXECUTE_PAGE_STEAM' };
 
 export type ExtensionResponse =

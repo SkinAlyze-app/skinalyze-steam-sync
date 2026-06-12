@@ -101,17 +101,16 @@ async function runRefreshBadges(): Promise<void> {
   }
 
   const pageSteam = await sendMessage<{ ok: boolean; steam?: string }>({ type: 'EXECUTE_PAGE_STEAM' });
-  const expected = (status.data as { steam_expected?: string | null })?.steam_expected;
+  const pairedSteamIds = (status.data as { paired_steam_ids?: string[] })?.paired_steam_ids ?? [];
+  const pageSteamId = pageSteam.ok && pageSteam.steam && pageSteam.steam.length > 3 ? pageSteam.steam : null;
   if (
-    pageSteam.ok &&
-    expected &&
-    pageSteam.steam &&
-    pageSteam.steam.length > 3 &&
-    pageSteam.steam !== expected
+    pageSteamId &&
+    pairedSteamIds.length > 0 &&
+    !pairedSteamIds.includes(pageSteamId)
   ) {
     clearBadges(document);
     showBanner(
-      'SkinAlyze: wrong Steam account for this profile. Log in as your linked Steam account.',
+      'SkinAlyze: this Steam account is not paired. Pair it in Settings → Integrations.',
       'warn',
     );
     return;
@@ -134,7 +133,11 @@ async function runRefreshBadges(): Promise<void> {
   const statuses: Record<string, string> = {};
   for (let i = 0; i < ids.length; i += chunk) {
     const slice = ids.slice(i, i + chunk);
-    const res = await sendMessage<ExtensionResponse>({ type: 'GET_BADGES', assetIds: slice });
+    const res = await sendMessage<ExtensionResponse>({
+      type: 'GET_BADGES',
+      assetIds: slice,
+      steamId64: pageSteamId,
+    });
     if (!res.ok) break;
     Object.assign(statuses, (res.data as { statuses?: Record<string, string> })?.statuses ?? {});
   }

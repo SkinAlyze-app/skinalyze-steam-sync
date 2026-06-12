@@ -19,7 +19,9 @@ export async function handlePair(code: string): Promise<{ ok: true } | { ok: fal
   const data = (await res.json().catch(() => ({}))) as {
     token?: string;
     steam_id64?: string;
+    steam_account_id?: string | null;
     user_handle?: string | null;
+    client_id?: string | null;
     error?: string;
   };
 
@@ -31,7 +33,9 @@ export async function handlePair(code: string): Promise<{ ok: true } | { ok: fal
   await setPaired({
     token: data.token,
     steam_id64: data.steam_id64,
+    steam_account_id: data.steam_account_id ?? null,
     user_handle: data.user_handle ?? null,
+    client_id: data.client_id ?? null,
   });
   await setLastError('');
   return { ok: true };

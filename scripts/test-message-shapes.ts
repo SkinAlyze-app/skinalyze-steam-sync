@@ -15,6 +15,17 @@ const TRADE_OFFERS_SYNC_KEYS = new Set([
   'client_meta',
 ]);
 
+const MARKET_HISTORY_SYNC_KEYS = new Set([
+  'steam_id64',
+  'rows',
+  'wallet',
+  'idempotency_key',
+  'sync_run_id',
+  'chunk_index',
+  'chunk_count',
+  'client_meta',
+]);
+
 const FORBIDDEN_SUBSTRINGS = ['data-loyalty_webapi_token', 'document.cookie', '<html'];
 
 export function runPayloadShapeTests(): void {
@@ -51,6 +62,44 @@ export function runPayloadShapeTests(): void {
       tradeSerialized.toLowerCase().includes(bad.toLowerCase()),
       false,
       `trade sync body must not contain ${bad}`
+    );
+  }
+
+  const marketBody = {
+    steam_id64: '76561198000000000',
+    rows: [
+      {
+        event_key: 'steam_market:history_row_1',
+        side: 'BUY',
+        app_id: 730,
+        market_hash_name: 'AK-47 | Redline (Field-Tested)',
+        display_price: '1,35€',
+        steam_currency_id: 3,
+        currency: 'EUR',
+        price_minor: 135,
+        price_numeric: 1.35,
+      },
+    ],
+    wallet: {
+      available: 1.35,
+      pending: 0,
+      steam_currency_id: 3,
+      currency: 'EUR',
+      raw_available: '1,35€',
+      raw_pending: null,
+    },
+    idempotency_key: 'mh_1',
+    client_meta: { pages_fetched: 1, chunk_size: 200 },
+  };
+  for (const k of Object.keys(marketBody)) {
+    assert.ok(MARKET_HISTORY_SYNC_KEYS.has(k), `unexpected market-history sync key: ${k}`);
+  }
+  const marketSerialized = JSON.stringify(marketBody);
+  for (const bad of FORBIDDEN_SUBSTRINGS) {
+    assert.equal(
+      marketSerialized.toLowerCase().includes(bad.toLowerCase()),
+      false,
+      `market-history sync body must not contain ${bad}`
     );
   }
 }
