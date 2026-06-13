@@ -51,7 +51,7 @@ export type SyncProgressState = {
 const STORAGE_KEY = 'skinalyze_sync_progress_snapshot_v1';
 
 /** completed/failed snapshots expire after this so the popup does not show stale banners forever */
-const TERMINAL_TTL_MS = 10_000;
+export const TERMINAL_TTL_MS = 10_000;
 /** If SW died mid-sync, do not show "active" forever */
 const ACTIVE_STALE_MS = 15 * 60 * 1000;
 
