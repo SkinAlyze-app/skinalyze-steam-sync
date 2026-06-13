@@ -6,6 +6,7 @@ import {
   friendlyMarketHistorySyncError,
   resetMarketHistorySyncProgressIdle,
   setMarketHistorySyncProgress,
+  TERMINAL_TTL_MS,
 } from '@/lib/sync-progress';
 
 function randomIdem(prefix: string): string {
@@ -13,7 +14,24 @@ function randomIdem(prefix: string): string {
   return `${prefix}_${Date.now()}_${r}`;
 }
 
-const IDLE_RESET_MS = 1400;
+const IDLE_RESET_MS = TERMINAL_TTL_MS;
+let idleResetTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearIdleResetTimer(): void {
+  if (idleResetTimer != null) {
+    clearTimeout(idleResetTimer);
+    idleResetTimer = null;
+  }
+}
+
+function scheduleIdleReset(delayMs: number): void {
+  clearIdleResetTimer();
+  idleResetTimer = setTimeout(() => {
+    idleResetTimer = null;
+    resetMarketHistorySyncProgressIdle();
+  }, delayMs);
+}
+
 const UPLOAD_CHUNK = 200;
 
 function chunkArray<T>(arr: T[], size: number): T[][] {
@@ -24,30 +42,31 @@ function chunkArray<T>(arr: T[], size: number): T[][] {
 }
 
 export async function handleSyncMarketHistory(): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
+  clearIdleResetTimer();
   resetMarketHistorySyncProgressIdle();
-
-  const pairings = await getPairings();
-  if (pairings.length === 0) {
-    return { ok: false, error: 'Not paired' };
-  }
+  setMarketHistorySyncProgress('checking_steam');
 
   const finishFail = async (msg: string) => {
     const friendly = friendlyMarketHistorySyncError(msg);
     setMarketHistorySyncProgress('failed', friendly);
     await setLastError(friendly);
-    setTimeout(() => resetMarketHistorySyncProgressIdle(), IDLE_RESET_MS + 800);
+    scheduleIdleReset(IDLE_RESET_MS + 800);
     return { ok: false, error: friendly } as const;
   };
 
   const finishOk = async (count: number) => {
     await setLastError('');
     setMarketHistorySyncProgress('completed');
-    setTimeout(() => resetMarketHistorySyncProgressIdle(), IDLE_RESET_MS);
+    scheduleIdleReset(IDLE_RESET_MS);
     return { ok: true, count } as const;
   };
 
+  const pairings = await getPairings();
+  if (pairings.length === 0) {
+    return finishFail('Not paired');
+  }
+
   try {
-    setMarketHistorySyncProgress('checking_steam');
     const detected = await detectLoggedInSteamId64().catch(() => null);
     const pairing = await getPairingForSteamId(detected);
     if (!pairing) {

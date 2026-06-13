@@ -49,6 +49,7 @@ export type ExtensionMessage =
   | { type: 'CHECK_EXTENSION_ME' }
   | { type: 'DETECT_STEAM' }
   | { type: 'SYNC_INVENTORY' }
+  | { type: 'SYNC_ALL' }
   | { type: 'GET_SYNC_PROGRESS' }
   | { type: 'GET_BADGES'; assetIds: string[]; steamId64?: string | null }
   | { type: 'SYNC_TRADE_OFFERS' }

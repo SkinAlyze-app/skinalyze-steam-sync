@@ -22,7 +22,7 @@
         <p id="status-line" class="status-line"></p>
         <p id="steam-line" class="steam-line"></p>
 
-        <div id="progress-panel" class="progress-panel" hidden>
+        <div id="progress-panel" class="progress-panel" aria-live="polite" hidden>
           <div id="inv-progress-row" class="progress-row" hidden>
             <div class="progress-track">
               <div id="inv-progress-fill" class="progress-fill"></div>
@@ -48,7 +48,7 @@
           <button id="detect-btn" type="button" class="btn btn-secondary">Check Steam login</button>
           <button id="manual-sync-btn" type="button" class="btn">Manual sync</button>
         </div>
-        <p id="msg" class="small"></p>
+        <p id="msg" class="small" aria-live="polite"></p>
       </section>
 
       <p class="footer">

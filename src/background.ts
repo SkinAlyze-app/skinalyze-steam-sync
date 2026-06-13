@@ -6,14 +6,18 @@ import { handleSyncInventory } from '@/lib/bridge/handlers/sync_inventory';
 import { handleGetBadges } from '@/lib/bridge/handlers/get_badge_data';
 import { handleSyncTradeOffers } from '@/lib/bridge/handlers/sync_trade_offers';
 import { handleSyncMarketHistory } from '@/lib/bridge/handlers/sync_market_history';
+import { handleSyncAll, type SyncAllResult } from '@/lib/bridge/handlers/sync_all';
 import { applyPeriodicSyncAlarm, registerPeriodicSync, onAlarm } from '@/lib/alarms';
 import { getAutomationSettings, getStorage } from '@/lib/storage';
 import { getHydratedSyncProgress } from '@/lib/sync-progress';
+import { createSingleFlight } from '@/lib/single-flight';
 import type { ExtensionMessage, ExtensionResponse } from '@/shared/types';
 
 let lastHybridInv = 0;
 let lastHybridOffers = 0;
 let lastHybridMarketHistory = 0;
+const detectSteamFlight = createSingleFlight<Awaited<ReturnType<typeof handleDetectSteam>>>();
+const syncAllFlight = createSingleFlight<SyncAllResult>();
 
 async function dispatch(msg: ExtensionMessage): Promise<ExtensionResponse> {
   try {
@@ -33,8 +37,13 @@ async function dispatch(msg: ExtensionMessage): Promise<ExtensionResponse> {
         return { ok: true, data: r };
       }
       case 'DETECT_STEAM': {
-        const data = await handleDetectSteam();
+        const data = await detectSteamFlight.run(handleDetectSteam);
         return { ok: true, data };
+      }
+      case 'SYNC_ALL': {
+        const run = syncAllFlight.start(handleSyncAll);
+        void run.promise.catch(() => undefined);
+        return { ok: true, data: { started: run.started, already_running: !run.started } };
       }
       case 'SYNC_INVENTORY': {
         const r = await handleSyncInventory();

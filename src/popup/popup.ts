@@ -1,13 +1,11 @@
 import { API_ORIGIN } from '@/shared/constants';
 import {
   friendlyInventorySyncError,
-  friendlyMarketHistorySyncError,
-  friendlyTradeOffersSyncError,
-  isProgressSliceActiveMh,
   isProgressSliceActiveInv,
+  isProgressSliceActiveMh,
   isProgressSliceActiveTo,
-  isProgressSliceVisibleMh,
   isProgressSliceVisibleInv,
+  isProgressSliceVisibleMh,
   isProgressSliceVisibleTo,
 } from '@/lib/sync-progress';
 import type { ExtensionResponse } from '@/shared/types';
@@ -20,13 +18,12 @@ function send<T>(msg: object): Promise<T> {
 }
 
 type ProgressSlice = SyncProgressState['inventory'] | SyncProgressState['tradeOffers'] | SyncProgressState['marketHistory'];
-
 type SyncProgressPayload = SyncProgressState;
 
 const pairSection = document.getElementById('pair-section')!;
 const statusSection = document.getElementById('status-section')!;
 const codeInput = document.getElementById('code') as HTMLInputElement;
-const pairBtn = document.getElementById('pair-btn')!;
+const pairBtn = document.getElementById('pair-btn') as HTMLButtonElement;
 const statusLine = document.getElementById('status-line')!;
 const steamLine = document.getElementById('steam-line')!;
 const detectBtn = document.getElementById('detect-btn') as HTMLButtonElement;
@@ -45,6 +42,9 @@ const mhProgressRow = document.getElementById('mh-progress-row')!;
 const mhProgressFill = document.getElementById('mh-progress-fill')!;
 const mhProgressLabel = document.getElementById('mh-progress-label')!;
 
+const DETECT_DEFAULT_LABEL = 'Check Steam login';
+const MANUAL_DEFAULT_LABEL = 'Manual sync';
+
 privacyLink.href = `${API_ORIGIN.replace(/\/$/, '')}/privacy`;
 
 /** Bumps on each refreshUi so stale CHECK_EXTENSION_ME cannot overwrite newer status text. */
@@ -52,6 +52,8 @@ let connectivityCheckGeneration = 0;
 
 /** Polling started when reopening the popup while a sync is in progress (or terminal grace). */
 let resumePollId: ReturnType<typeof setInterval> | null = null;
+let syncBusy = false;
+let detectBusy = false;
 
 function stopResumePoll(): void {
   if (resumePollId != null) {
@@ -68,9 +70,27 @@ function setMsg(text: string, err = false, warn = false): void {
   else if (warn) msg.classList.add('warn');
 }
 
-function setActionBusy(busy: boolean): void {
-  manualSyncBtn.disabled = busy;
+function updateActionButtons(): void {
+  const busy = syncBusy || detectBusy;
   detectBtn.disabled = busy;
+  manualSyncBtn.disabled = busy;
+  detectBtn.textContent = detectBusy ? 'Checking...' : DETECT_DEFAULT_LABEL;
+  manualSyncBtn.textContent = syncBusy ? 'Syncing...' : MANUAL_DEFAULT_LABEL;
+  detectBtn.classList.toggle('is-loading', detectBusy);
+  manualSyncBtn.classList.toggle('is-loading', syncBusy);
+  detectBtn.setAttribute('aria-busy', detectBusy ? 'true' : 'false');
+  manualSyncBtn.setAttribute('aria-busy', syncBusy ? 'true' : 'false');
+}
+
+function setSyncBusy(busy: boolean): void {
+  syncBusy = busy;
+  statusSection.classList.toggle('is-syncing', busy);
+  updateActionButtons();
+}
+
+function setDetectBusy(busy: boolean): void {
+  detectBusy = busy;
+  updateActionButtons();
 }
 
 function applyProgressRow(
@@ -82,87 +102,20 @@ function applyProgressRow(
 ): void {
   if (!active || slice.phase === 'idle') {
     row.hidden = true;
+    row.classList.remove('is-terminal', 'is-failed');
     return;
   }
   row.hidden = false;
+  row.classList.toggle('is-terminal', slice.phase === 'completed' || slice.phase === 'failed');
+  row.classList.toggle('is-failed', slice.phase === 'failed');
   fill.style.width = `${Math.min(100, Math.max(0, slice.percent))}%`;
   labelEl.textContent = slice.label || slice.phase;
 }
 
-function refreshProgressVisibility(invActive: boolean, toActive: boolean, mhActive: boolean): void {
-  const any = invActive || toActive || mhActive;
+function refreshProgressVisibility(invVisible: boolean, toVisible: boolean, mhVisible: boolean, active: boolean): void {
+  const any = invVisible || toVisible || mhVisible;
   progressPanel.hidden = !any;
-}
-
-function startProgressPolling(which: 'inv' | 'offers' | 'market' | 'both'): ReturnType<typeof setInterval> {
-  return window.setInterval(async () => {
-    const res = await send<ExtensionResponse>({ type: 'GET_SYNC_PROGRESS' });
-    if (!res.ok || !res.data) return;
-    const d = res.data as SyncProgressPayload;
-    const invOn = which === 'inv' || which === 'both';
-    const toOn = which === 'offers' || which === 'both';
-    const mhOn = which === 'market' || which === 'both';
-    applyProgressRow(invProgressRow, invProgressFill, invProgressLabel, d.inventory, invOn);
-    applyProgressRow(toProgressRow, toProgressFill, toProgressLabel, d.tradeOffers, toOn);
-    applyProgressRow(mhProgressRow, mhProgressFill, mhProgressLabel, d.marketHistory, mhOn);
-    refreshProgressVisibility(
-      invOn && isProgressSliceVisibleInv(d.inventory),
-      toOn && isProgressSliceVisibleTo(d.tradeOffers),
-      mhOn && isProgressSliceVisibleMh(d.marketHistory)
-    );
-  }, 220);
-}
-
-async function hydrateProgressOnOpen(): Promise<void> {
-  stopResumePoll();
-  if (!pairSection.hidden) return;
-
-  const res = await send<ExtensionResponse>({ type: 'GET_SYNC_PROGRESS' });
-  if (!res.ok || !res.data) return;
-  const d = res.data as SyncProgressPayload;
-
-  const invVis = isProgressSliceVisibleInv(d.inventory);
-  const toVis = isProgressSliceVisibleTo(d.tradeOffers);
-  const mhVis = isProgressSliceVisibleMh(d.marketHistory);
-  const invRun = isProgressSliceActiveInv(d.inventory);
-  const toRun = isProgressSliceActiveTo(d.tradeOffers);
-  const mhRun = isProgressSliceActiveMh(d.marketHistory);
-
-  applyProgressRow(invProgressRow, invProgressFill, invProgressLabel, d.inventory, true);
-  applyProgressRow(toProgressRow, toProgressFill, toProgressLabel, d.tradeOffers, true);
-  applyProgressRow(mhProgressRow, mhProgressFill, mhProgressLabel, d.marketHistory, true);
-  refreshProgressVisibility(invVis, toVis, mhVis);
-  setActionBusy(invRun || toRun || mhRun);
-
-  if (!invVis && !toVis && !mhVis) {
-    hideAllProgress();
-    return;
-  }
-
-  resumePollId = window.setInterval(async () => {
-    const r = await send<ExtensionResponse>({ type: 'GET_SYNC_PROGRESS' });
-    if (!r.ok || !r.data) return;
-    const p = r.data as SyncProgressPayload;
-    const iv = isProgressSliceVisibleInv(p.inventory);
-    const tv = isProgressSliceVisibleTo(p.tradeOffers);
-    const mv = isProgressSliceVisibleMh(p.marketHistory);
-    const ir = isProgressSliceActiveInv(p.inventory);
-    const tr = isProgressSliceActiveTo(p.tradeOffers);
-    const mr = isProgressSliceActiveMh(p.marketHistory);
-
-    applyProgressRow(invProgressRow, invProgressFill, invProgressLabel, p.inventory, true);
-    applyProgressRow(toProgressRow, toProgressFill, toProgressLabel, p.tradeOffers, true);
-    applyProgressRow(mhProgressRow, mhProgressFill, mhProgressLabel, p.marketHistory, true);
-    refreshProgressVisibility(iv, tv, mv);
-    setActionBusy(ir || tr || mr);
-
-    if (!iv && !tv && !mv) {
-      stopResumePoll();
-      hideAllProgress();
-      setActionBusy(false);
-      await refreshUi();
-    }
-  }, 220);
+  progressPanel.classList.toggle('is-active', active);
 }
 
 function hideAllProgress(): void {
@@ -170,9 +123,66 @@ function hideAllProgress(): void {
   toProgressRow.hidden = true;
   mhProgressRow.hidden = true;
   progressPanel.hidden = true;
+  progressPanel.classList.remove('is-active');
   invProgressFill.style.width = '0%';
   toProgressFill.style.width = '0%';
   mhProgressFill.style.width = '0%';
+}
+
+async function renderProgressFromBackground(): Promise<{ visible: boolean; active: boolean } | null> {
+  const res = await send<ExtensionResponse>({ type: 'GET_SYNC_PROGRESS' });
+  if (!res.ok || !res.data) return null;
+
+  const d = res.data as SyncProgressPayload;
+  const invVisible = isProgressSliceVisibleInv(d.inventory);
+  const toVisible = isProgressSliceVisibleTo(d.tradeOffers);
+  const mhVisible = isProgressSliceVisibleMh(d.marketHistory);
+  const invActive = isProgressSliceActiveInv(d.inventory);
+  const toActive = isProgressSliceActiveTo(d.tradeOffers);
+  const mhActive = isProgressSliceActiveMh(d.marketHistory);
+  const active = invActive || toActive || mhActive;
+
+  applyProgressRow(invProgressRow, invProgressFill, invProgressLabel, d.inventory, true);
+  applyProgressRow(toProgressRow, toProgressFill, toProgressLabel, d.tradeOffers, true);
+  applyProgressRow(mhProgressRow, mhProgressFill, mhProgressLabel, d.marketHistory, true);
+  refreshProgressVisibility(invVisible, toVisible, mhVisible, active);
+
+  return { visible: invVisible || toVisible || mhVisible, active };
+}
+
+function startProgressMonitor(startupGraceMs = 0): void {
+  stopResumePoll();
+  const startedAt = Date.now();
+
+  void renderProgressFromBackground();
+  resumePollId = window.setInterval(async () => {
+    const progress = await renderProgressFromBackground();
+    if (!progress) return;
+
+    const insideStartupGrace = Date.now() - startedAt < startupGraceMs;
+    setSyncBusy(progress.active || (insideStartupGrace && syncBusy));
+    if (!progress.visible && !insideStartupGrace) {
+      stopResumePoll();
+      hideAllProgress();
+      setSyncBusy(false);
+      await refreshUi();
+    }
+  }, 220);
+}
+
+async function hydrateProgressOnOpen(): Promise<void> {
+  stopResumePoll();
+  if (!pairSection.hidden) return;
+
+  const progress = await renderProgressFromBackground();
+  if (!progress?.visible) {
+    hideAllProgress();
+    setSyncBusy(false);
+    return;
+  }
+
+  setSyncBusy(progress.active);
+  startProgressMonitor();
 }
 
 async function refreshUi(): Promise<void> {
@@ -210,7 +220,7 @@ async function refreshUi(): Promise<void> {
   let steamText =
     pairedSteamIds.length > 1
       ? `Linked Steam IDs: ${pairedSteamIds.join(', ')}`
-      : `Linked Steam ID: ${d.steam_expected ?? pairedSteamIds[0] ?? '—'}`;
+      : `Linked Steam ID: ${d.steam_expected ?? pairedSteamIds[0] ?? '-'}`;
   if (d.last_sync_at) {
     steamText += ` · Last sync: ${new Date(d.last_sync_at).toLocaleString()}`;
   }
@@ -233,92 +243,79 @@ async function refreshUi(): Promise<void> {
 }
 
 pairBtn.addEventListener('click', async () => {
-  setMsg('Pairing…');
-  const res = await send<ExtensionResponse>({ type: 'PAIR', code: codeInput.value });
-  if (!res.ok) {
-    setMsg(res.error || 'Pair failed', true);
-    return;
+  if (pairBtn.disabled) return;
+  const originalLabel = pairBtn.textContent || 'Pair';
+  pairBtn.disabled = true;
+  pairBtn.classList.add('is-loading');
+  pairBtn.textContent = 'Pairing...';
+  setMsg('Pairing...');
+  try {
+    const res = await send<ExtensionResponse>({ type: 'PAIR', code: codeInput.value });
+    if (!res.ok) {
+      setMsg(res.error || 'Pair failed', true);
+      return;
+    }
+    codeInput.value = '';
+    setMsg('Paired successfully.');
+    await refreshUi();
+    await hydrateProgressOnOpen();
+  } finally {
+    pairBtn.disabled = false;
+    pairBtn.classList.remove('is-loading');
+    pairBtn.textContent = originalLabel;
   }
-  codeInput.value = '';
-  setMsg('Paired successfully.');
-  await refreshUi();
-  await hydrateProgressOnOpen();
 });
 
 detectBtn.addEventListener('click', async () => {
-  setMsg('Checking…');
-  const res = await send<ExtensionResponse>({ type: 'DETECT_STEAM' });
-  if (!res.ok) {
-    setMsg(res.error || 'Failed', true);
-    return;
+  if (detectBusy || syncBusy) return;
+
+  setDetectBusy(true);
+  setMsg('Checking...');
+  let outcome = '';
+  let isError = false;
+
+  try {
+    const res = await send<ExtensionResponse>({ type: 'DETECT_STEAM' });
+    if (!res.ok) {
+      outcome = res.error || 'Failed';
+      isError = true;
+      return;
+    }
+
+    const d = res.data as { steam_id64?: string | null; match?: boolean | null };
+    if (!d.steam_id64) {
+      outcome = 'Not logged into Steam in this browser.';
+      isError = true;
+    } else if (d.match === false) {
+      outcome = `Wrong account (browser: ${d.steam_id64}).`;
+      isError = true;
+    } else {
+      outcome = `Steam OK (${d.steam_id64}).`;
+    }
+  } finally {
+    setDetectBusy(false);
+    await refreshUi();
+    if (outcome) setMsg(outcome, isError);
   }
-  const d = res.data as { steam_id64?: string | null; match?: boolean | null };
-  if (!d.steam_id64) {
-    setMsg('Not logged into Steam in this browser.', true);
-  } else if (d.match === false) {
-    setMsg(`Wrong account (browser: ${d.steam_id64}).`, true);
-  } else {
-    setMsg(`Steam OK (${d.steam_id64}).`);
-  }
-  await refreshUi();
 });
 
 manualSyncBtn.addEventListener('click', async () => {
-  stopResumePoll();
-  hideAllProgress();
-  setMsg('Starting manual sync (inventory, trade offers, then market history)…');
-  setActionBusy(true);
-  const poll = startProgressPolling('both');
-  try {
-    const invRes = await send<ExtensionResponse>({ type: 'SYNC_INVENTORY' });
-    if (!invRes.ok) {
-      setMsg(friendlyInventorySyncError(invRes.error || 'Inventory sync failed'), true);
-      return;
-    }
-    const invData = invRes.data as {
-      total_items?: number;
-      skipped_unchanged?: boolean;
-      idempotent?: boolean;
-    };
-    const n = typeof invData.total_items === 'number' ? invData.total_items : null;
-    let invSummary: string;
-    if (invData.idempotent) {
-      invSummary = 'Inventory: skipped (same request already processed).';
-    } else if (invData.skipped_unchanged) {
-      invSummary = n != null ? `Inventory: no changes (${n} items unchanged).` : 'Inventory: no changes since last sync.';
-    } else {
-      invSummary = n != null ? `Inventory: synced (${n} items).` : 'Inventory: synced.';
-    }
+  if (syncBusy || detectBusy) return;
 
-    const toRes = await send<ExtensionResponse>({ type: 'SYNC_TRADE_OFFERS' });
-    if (!toRes.ok) {
-      setMsg(
-        `${invSummary} Trade offers: ${friendlyTradeOffersSyncError((toRes as { error?: string }).error || 'Sync failed')}`,
-        true
-      );
-      return;
-    }
-    const toData = toRes.data as { count?: number };
-    const toSummary = `Trade offers: synced (${toData.count ?? 0}).`;
+  setMsg('Starting manual sync...');
+  setSyncBusy(true);
 
-    const mhRes = await send<ExtensionResponse>({ type: 'SYNC_MARKET_HISTORY' });
-    if (!mhRes.ok) {
-      setMsg(
-        `${invSummary} ${toSummary} Market history: ${friendlyMarketHistorySyncError((mhRes as { error?: string }).error || 'Sync failed')}`,
-        true
-      );
-      return;
-    }
-    const mhData = mhRes.data as { count?: number; buys_created?: number; sells_matched?: number };
-    setMsg(
-      `${invSummary} ${toSummary} Market history: synced (${mhData.count ?? 0}; buys ${mhData.buys_created ?? 0}, sells ${mhData.sells_matched ?? 0}).`
-    );
-  } finally {
-    clearInterval(poll);
-    hideAllProgress();
-    setActionBusy(false);
-    await refreshUi();
+  const res = await send<ExtensionResponse>({ type: 'SYNC_ALL' });
+  if (!res.ok) {
+    setSyncBusy(false);
+    setMsg(res.error || 'Sync failed', true);
+    return;
   }
+
+  const data = res.data as { started?: boolean; already_running?: boolean } | undefined;
+  setMsg(data?.already_running ? 'Manual sync already running.' : 'Manual sync running...');
+  startProgressMonitor(1200);
 });
 
+updateActionButtons();
 void refreshUi().then(() => void hydrateProgressOnOpen());

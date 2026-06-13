@@ -6,6 +6,7 @@ import {
   friendlyInventorySyncError,
   resetInventorySyncProgressIdle,
   setInventorySyncProgress,
+  TERMINAL_TTL_MS,
 } from '@/lib/sync-progress';
 
 function randomIdem(prefix: string): string {
@@ -13,21 +14,34 @@ function randomIdem(prefix: string): string {
   return `${prefix}_${Date.now()}_${r}`;
 }
 
-const IDLE_RESET_MS = 1400;
+const IDLE_RESET_MS = TERMINAL_TTL_MS;
+let idleResetTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearIdleResetTimer(): void {
+  if (idleResetTimer != null) {
+    clearTimeout(idleResetTimer);
+    idleResetTimer = null;
+  }
+}
+
+function scheduleIdleReset(delayMs: number): void {
+  clearIdleResetTimer();
+  idleResetTimer = setTimeout(() => {
+    idleResetTimer = null;
+    resetInventorySyncProgressIdle();
+  }, delayMs);
+}
 
 export async function handleSyncInventory(): Promise<{ ok: true; data: unknown } | { ok: false; error: string }> {
+  clearIdleResetTimer();
   resetInventorySyncProgressIdle();
-
-  const pairings = await getPairings();
-  if (pairings.length === 0) {
-    return { ok: false, error: 'Not paired' };
-  }
+  setInventorySyncProgress('checking_steam');
 
   const finishFail = async (msg: string) => {
     const friendly = friendlyInventorySyncError(msg);
     setInventorySyncProgress('failed', friendly);
     await setLastError(friendly);
-    setTimeout(() => resetInventorySyncProgressIdle(), IDLE_RESET_MS + 800);
+    scheduleIdleReset(IDLE_RESET_MS + 800);
     return { ok: false, error: friendly } as const;
   };
 
@@ -35,12 +49,16 @@ export async function handleSyncInventory(): Promise<{ ok: true; data: unknown }
     await setLastSyncAt(new Date().toISOString());
     await setLastError('');
     setInventorySyncProgress('completed');
-    setTimeout(() => resetInventorySyncProgressIdle(), IDLE_RESET_MS);
+    scheduleIdleReset(IDLE_RESET_MS);
     return { ok: true, data } as const;
   };
 
+  const pairings = await getPairings();
+  if (pairings.length === 0) {
+    return finishFail('Not paired');
+  }
+
   try {
-    setInventorySyncProgress('checking_steam');
     let detected: string | null = null;
     try {
       detected = await detectLoggedInSteamId64();

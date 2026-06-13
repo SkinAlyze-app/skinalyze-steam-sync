@@ -4,11 +4,14 @@
   --bg: #0b0f14;
   --bg-soft: #0e131b;
   --panel: #121a24;
+  --panel-strong: #16202c;
   --border: #1c2633;
   --ink: #dbe3f1;
   --ink-muted: #9aa9bf;
   --accent: #ff8b2e;
   --accent-hover: #ff9b42;
+  --accent-soft: rgba(255, 139, 46, 0.18);
+  --ring: rgba(255, 139, 46, 0.34);
   --pos: #22c55e;
   --neg: #ef4444;
   --radius: 14px;
@@ -31,16 +34,16 @@ body {
 
 .wrap {
   padding: 14px 14px 10px;
-  background: radial-gradient(120% 80% at 50% -20%, rgba(255, 139, 46, 0.12), transparent 55%),
-    var(--bg);
+  background: linear-gradient(180deg, rgba(255, 139, 46, 0.08), rgba(11, 15, 20, 0) 92px), var(--bg);
 }
 
 h1 {
   font-size: 17px;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   margin: 0 0 2px;
   color: var(--ink);
+  animation: slide-in 0.32s ease both;
 }
 
 .sub {
@@ -56,13 +59,21 @@ h1 {
   padding: 12px;
   margin-bottom: 10px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  animation: panel-in 0.34s ease both;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.panel.is-syncing {
+  border-color: rgba(255, 139, 46, 0.34);
+  background: linear-gradient(180deg, rgba(255, 139, 46, 0.045), rgba(18, 26, 36, 0) 62px), var(--panel);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.42), 0 0 0 1px rgba(255, 139, 46, 0.07) inset;
 }
 
 .panel-title {
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0;
   color: var(--ink-muted);
   margin: 0 0 8px;
 }
@@ -153,8 +164,10 @@ input[type='number'] {
 }
 
 button.btn {
+  position: relative;
   width: 100%;
   padding: 10px 12px;
+  min-height: 38px;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
   background: linear-gradient(180deg, var(--accent-hover), var(--accent));
@@ -162,16 +175,34 @@ button.btn {
   font-weight: 700;
   font-size: 12px;
   cursor: pointer;
-  transition: filter 0.15s ease, opacity 0.15s ease;
+  overflow: hidden;
+  transform: translateY(0);
+  transition: transform 0.15s ease, filter 0.15s ease, opacity 0.15s ease, box-shadow 0.15s ease,
+    border-color 0.15s ease;
+  box-shadow: 0 8px 20px rgba(255, 139, 46, 0.14);
 }
 
 button.btn:hover:not(:disabled) {
   filter: brightness(1.06);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(255, 139, 46, 0.22);
+}
+
+button.btn:active:not(:disabled) {
+  transform: translateY(0);
+  filter: brightness(0.98);
+}
+
+button.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring), 0 8px 20px rgba(255, 139, 46, 0.14);
 }
 
 button.btn:disabled {
-  opacity: 0.45;
+  opacity: 0.58;
   cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
 }
 
 button.btn-secondary {
@@ -179,6 +210,22 @@ button.btn-secondary {
   color: var(--ink);
   border-color: var(--border);
   font-weight: 600;
+  box-shadow: none;
+}
+
+button.btn-secondary:hover:not(:disabled) {
+  border-color: rgba(154, 169, 191, 0.38);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.24);
+}
+
+button.btn.is-loading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 0%, rgba(255, 255, 255, 0.16) 48%, transparent 82%);
+  transform: translateX(-100%);
+  animation: button-sheen 1.15s ease-in-out infinite;
+  pointer-events: none;
 }
 
 #msg {
@@ -219,6 +266,14 @@ button.btn-secondary {
   background: var(--bg-soft);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+  animation: panel-in 0.24s ease both;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.progress-panel.is-active {
+  border-color: rgba(255, 139, 46, 0.32);
+  background: linear-gradient(180deg, rgba(255, 139, 46, 0.04), rgba(14, 19, 27, 0)), var(--bg-soft);
+  box-shadow: 0 0 0 1px rgba(255, 139, 46, 0.06) inset;
 }
 
 .progress-panel[hidden] {
@@ -234,6 +289,7 @@ button.btn-secondary {
 }
 
 .progress-track {
+  position: relative;
   height: 6px;
   border-radius: 999px;
   background: var(--border);
@@ -241,12 +297,30 @@ button.btn-secondary {
   margin-bottom: 6px;
 }
 
+.progress-panel.is-active .progress-track::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.13), transparent);
+  transform: translateX(-100%);
+  animation: progress-sheen 1.35s ease-in-out infinite;
+}
+
 .progress-fill {
+  position: relative;
   height: 100%;
   width: 0%;
   border-radius: 999px;
   background: linear-gradient(90deg, var(--accent), #ff6b00);
-  transition: width 0.25s ease;
+  transition: width 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.progress-row.is-terminal .progress-fill {
+  background: linear-gradient(90deg, var(--pos), #10b981);
+}
+
+.progress-row.is-failed .progress-fill {
+  background: linear-gradient(90deg, var(--neg), #f97316);
 }
 
 .progress-label {
@@ -260,4 +334,49 @@ button.btn-secondary {
   margin: 6px 0 0;
   font-size: 10px;
   color: var(--ink-muted);
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes button-sheen {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes progress-sheen {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
 }
