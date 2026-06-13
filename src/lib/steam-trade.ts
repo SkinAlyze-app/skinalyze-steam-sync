@@ -482,7 +482,12 @@ async function fetchOffersForModeCollect(
 
 const MAX_PAGES_PER_MODE = 150;
 const MAX_HISTORY_PAGES = 200;
-const MAX_TRADES_PER_HISTORY_PAGE = 100;
+const MAX_TRADES_PER_HISTORY_PAGE = 500;
+
+type TradeHistoryCursor = {
+  tradeId: string;
+  timeInit: string;
+};
 
 function mapHistoryAssets(arr: unknown): TradeHistoryAsset[] {
   if (arr == null) return [];
@@ -547,6 +552,24 @@ function mapTradeHistoryRow(t: Record<string, unknown>): NormalizedTradeHistory 
   };
 }
 
+function readTradeHistoryCursor(t: Record<string, unknown>): TradeHistoryCursor | null {
+  const tradeId = t.tradeid != null ? String(t.tradeid).trim() : '';
+  if (!tradeId) return null;
+
+  const rawTime = t.time_init;
+  const parsedTime =
+    typeof rawTime === 'number' && Number.isFinite(rawTime)
+      ? Math.trunc(rawTime)
+      : rawTime != null && String(rawTime).trim() !== ''
+        ? Math.trunc(Number(rawTime))
+        : NaN;
+
+  return {
+    tradeId,
+    timeInit: Number.isFinite(parsedTime) ? String(parsedTime) : '',
+  };
+}
+
 type SteamGetTradeHistoryResponse = {
   response?: {
     trades?: Record<string, unknown>[];
@@ -554,19 +577,20 @@ type SteamGetTradeHistoryResponse = {
   };
 };
 
-async function fetchTradeHistoryWithToken(
+export async function fetchTradeHistoryWithToken(
   token: string,
   onProgress?: (p: { page: number; tradesAccumulated: number }) => void
 ): Promise<{ trades: NormalizedTradeHistory[]; meta: TradeHistoryFetchMeta }> {
   const byId = new Map<string, NormalizedTradeHistory>();
+  const pageSignatures = new Set<string>();
   let pages = 0;
   let requests = 0;
-  let capped = false;
-  let startAfterTradeId = '';
+  let completedNaturally = true;
+  let cursor: TradeHistoryCursor | null = null;
 
   for (;;) {
     if (pages >= MAX_HISTORY_PAGES) {
-      capped = true;
+      completedNaturally = false;
       break;
     }
 
@@ -577,34 +601,67 @@ async function fetchTradeHistoryWithToken(
       get_descriptions: 'true',
       language: 'english',
     });
-    if (startAfterTradeId) params.set('start_after_tradeid', startAfterTradeId);
+    if (cursor?.tradeId) params.set('start_after_tradeid', cursor.tradeId);
+    if (cursor?.timeInit) params.set('start_after_time', cursor.timeInit);
 
     const url = `https://api.steampowered.com/IEconService/GetTradeHistory/v1/?${params.toString()}`;
     const res = await fetch(url, { credentials: 'omit' });
     requests++;
     pages++;
 
-    if (!res.ok) break;
+    if (!res.ok) {
+      completedNaturally = false;
+      break;
+    }
 
     const j = (await res.json()) as SteamGetTradeHistoryResponse;
     const resp = j.response;
     const batch = resp?.trades ?? [];
-    if (batch.length === 0) break;
+    if (batch.length === 0) {
+      if (Boolean(resp?.more)) completedNaturally = false;
+      break;
+    }
 
-    let lastTradeId = '';
+    let nextCursor: TradeHistoryCursor | null = null;
+    let newRows = 0;
+    const pageTradeIds: string[] = [];
     for (const raw of batch) {
-      const row = mapTradeHistoryRow(raw as Record<string, unknown>);
+      const rec = raw as Record<string, unknown>;
+      const cursorCandidate = readTradeHistoryCursor(rec);
+      if (cursorCandidate) {
+        pageTradeIds.push(cursorCandidate.tradeId);
+        nextCursor = cursorCandidate;
+      }
+
+      const row = mapTradeHistoryRow(rec);
       if (row) {
+        if (!byId.has(row.trade_id)) newRows++;
         byId.set(row.trade_id, row);
-        lastTradeId = row.trade_id;
       }
     }
 
     onProgress?.({ page: pages, tradesAccumulated: byId.size });
 
     const more = Boolean(resp?.more);
-    if (!more || !lastTradeId) break;
-    startAfterTradeId = lastTradeId;
+    if (!more) break;
+
+    const pageSignature = pageTradeIds.join('|');
+    const repeatedPage = pageSignature !== '' && pageSignatures.has(pageSignature);
+    if (pageSignature) pageSignatures.add(pageSignature);
+
+    const cursorStalled =
+      cursor != null &&
+      nextCursor != null &&
+      cursor.tradeId === nextCursor.tradeId &&
+      (!nextCursor.timeInit || cursor.timeInit === nextCursor.timeInit);
+
+    // Steam can repeat the same page while still claiming `more`; stop before that becomes a 429 loop.
+    if (!nextCursor || newRows === 0 || repeatedPage || cursorStalled) {
+      completedNaturally = false;
+      break;
+    }
+
+    cursor = nextCursor;
   }
 
   const trades = Array.from(byId.values());
@@ -613,7 +670,7 @@ async function fetchTradeHistoryWithToken(
     meta: {
       pagesFetched: pages,
       requestsMade: requests,
-      completedNaturally: !capped,
+      completedNaturally,
       tradeCount: trades.length,
     },
   };
