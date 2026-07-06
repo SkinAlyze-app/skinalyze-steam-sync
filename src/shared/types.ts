@@ -46,6 +46,7 @@ export type SteamInventoryItem = {
 export type ExtensionMessage =
   | { type: 'PAIR'; code: string }
   | { type: 'GET_STATUS' }
+  | { type: 'SET_STEAM_SYNC_ENABLED'; enabled: boolean; steamId64?: string | null }
   | { type: 'CHECK_EXTENSION_ME' }
   | { type: 'DETECT_STEAM' }
   | { type: 'SYNC_INVENTORY' }

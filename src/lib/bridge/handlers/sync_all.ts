@@ -23,6 +23,15 @@ export async function handleSyncAll(): Promise<SyncAllResult> {
 
   const inventory = await handleSyncInventory();
   if (!inventory.ok) return { ok: false, error: inventory.error };
+  const inventoryData = inventory.data as { skipped?: boolean; reason?: string } | undefined;
+  if (inventoryData?.skipped && inventoryData.reason === 'steam_sync_disabled') {
+    return {
+      ok: true,
+      inventory: inventory.data,
+      tradeOffers: { count: 0 },
+      marketHistory: { count: 0 },
+    };
+  }
 
   const tradeOffers = await handleSyncTradeOffers();
   if (!tradeOffers.ok) return { ok: false, error: tradeOffers.error };

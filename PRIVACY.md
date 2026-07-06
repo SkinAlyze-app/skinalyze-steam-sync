@@ -10,6 +10,7 @@ Stored in `chrome.storage.local` on your machine:
 
 - SkinAlyze **bearer token** after successful pairing (authenticates `/api/extension/*` requests).
 - Expected **Steam ID** and optional display handle from SkinAlyze when you pair.
+- Per-account Steam sync on/off setting.
 - Last sync timestamps, last detected Steam account, last error message, and progress UI snapshots.
 
 You can clear pairing from the extension UI where supported, and you should **revoke** the client from SkinAlyze **Settings → Integrations → Browser extension** to invalidate the server-side token.
@@ -45,11 +46,12 @@ All requests use `credentials: 'omit'` and send a **JSON body** or query as docu
 
 ## Automatic sync
 
-After you pair with SkinAlyze, the extension keeps your account updated **without** requiring you to click sync every time:
+After you pair with SkinAlyze, the extension keeps your account updated **without** requiring you to click sync every time while **Steam sync** is enabled in the popup:
 
 1. **Periodic background sync (about every 20 minutes):** While paired, the extension syncs **inventory** and **trade-offer / trade-history summaries** to SkinAlyze on a fixed interval using Chrome alarms.
 2. **Page-triggered sync:** When you finish loading a relevant **Steam Community inventory** or **trade offers** page in the same browser, the extension may run the same sync again after a short cooldown (typically a few minutes) so normal browsing stays up to date.
-3. **Manual sync:** The popup **Manual sync** button still runs inventory and trade sync on demand; automatic behavior continues afterward.
+3. **Manual sync:** The popup **Manual sync** button still runs inventory and trade sync on demand while Steam sync is enabled; automatic behavior continues afterward.
+4. **Pause control:** Turning Steam sync off pauses manual, periodic, and page-triggered Steam sync for the active paired Steam account until you turn it back on.
 
 **Purpose:** SkinAlyze features such as inventory review, trade reconciliation, and status badges need current summary data from Steam — not your login secrets.
 
@@ -62,8 +64,8 @@ After you pair with SkinAlyze, the extension keeps your account updated **withou
 
 ## Threat model (what “open source” proves)
 
-- **Source on GitHub** lets you verify the extension’s stated behavior by reading TypeScript, manifest permissions, and test expectations.
-- **Chrome Web Store** (if used) distributes a built package; you should compare release tags and build artifacts from this repo when we publish them.
+- **Source on GitHub** lets you verify the public Steam sync component’s stated behavior by reading TypeScript, manifest permissions, and test expectations.
+- **Chrome Web Store** distributes a built package. Official SkinAlyze distributions may include proprietary SkinAlyze features that are not included in this repository; this repo builds the public Steam sync component.
 - **Malicious builds**: only install unpacked builds you built yourself, or releases from maintainers you trust.
 
 ## Contact

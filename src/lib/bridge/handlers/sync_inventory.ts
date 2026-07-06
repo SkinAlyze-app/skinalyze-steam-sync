@@ -1,6 +1,12 @@
 import { apiPost, messageFromExtensionApiBody } from '@/lib/api';
 import { fetchCs2Inventory } from '@/lib/steam';
-import { getPairingForSteamId, getPairings, setLastSyncAt, setLastError } from '@/lib/storage';
+import {
+  getPairingForSteamId,
+  getPairings,
+  isSteamSyncEnabledForPairing,
+  setLastSyncAt,
+  setLastError,
+} from '@/lib/storage';
 import { detectLoggedInSteamId64 } from '@/lib/steam-detect';
 import {
   friendlyInventorySyncError,
@@ -53,6 +59,18 @@ export async function handleSyncInventory(): Promise<{ ok: true; data: unknown }
     return { ok: true, data } as const;
   };
 
+  const finishSkipped = () => {
+    resetInventorySyncProgressIdle();
+    return {
+      ok: true,
+      data: {
+        skipped: true,
+        reason: 'steam_sync_disabled',
+        message: 'Steam sync is disabled for this paired Steam account.',
+      },
+    } as const;
+  };
+
   const pairings = await getPairings();
   if (pairings.length === 0) {
     return finishFail('Not paired');
@@ -72,6 +90,9 @@ export async function handleSyncInventory(): Promise<{ ok: true; data: unknown }
           ? 'Not logged into Steam in this browser.'
           : 'This Steam account is not paired with SkinAlyze. Pair it in Settings → Integrations.';
       return finishFail(msg);
+    }
+    if (!isSteamSyncEnabledForPairing(pairing)) {
+      return finishSkipped();
     }
 
     let items;

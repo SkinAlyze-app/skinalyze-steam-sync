@@ -12,6 +12,9 @@
   --accent-hover: #ff9b42;
   --accent-soft: rgba(255, 139, 46, 0.18);
   --ring: rgba(255, 139, 46, 0.34);
+  --scrollbar-track: rgba(14, 19, 27, 0.78);
+  --scrollbar-thumb: #ff8b2e;
+  --scrollbar-thumb-hover: #ff9b42;
   --pos: #22c55e;
   --neg: #ef4444;
   --radius: 14px;
@@ -23,18 +26,74 @@
   box-sizing: border-box;
 }
 
+html,
+body,
+* {
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+*::-webkit-scrollbar-track {
+  background: linear-gradient(180deg, rgba(11, 15, 20, 0.98), rgba(18, 26, 36, 0.92));
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb {
+  min-height: 42px;
+  border: 3px solid #0b0f14;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--scrollbar-thumb-hover), var(--scrollbar-thumb) 52%, #ff6b00);
+  box-shadow: 0 0 0 1px rgba(255, 139, 46, 0.24) inset, 0 0 12px rgba(255, 139, 46, 0.18);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #ffb05f, var(--scrollbar-thumb-hover) 52%, var(--scrollbar-thumb));
+  box-shadow: 0 0 0 1px rgba(255, 177, 95, 0.3) inset, 0 0 16px rgba(255, 139, 46, 0.26);
+}
+
+*::-webkit-scrollbar-corner {
+  background: var(--bg);
+}
+
 body {
   margin: 0;
   font: 13px var(--font);
   background: var(--bg);
   color: var(--ink);
-  min-width: 300px;
-  max-width: 340px;
+  width: 460px;
+  min-width: 420px;
+  max-width: 460px;
 }
 
 .wrap {
   padding: 14px 14px 10px;
   background: linear-gradient(180deg, rgba(255, 139, 46, 0.08), rgba(11, 15, 20, 0) 92px), var(--bg);
+}
+
+.brand-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.brand-logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  object-fit: contain;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(154, 169, 191, 0.16);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.24);
+}
+
+.brand-copy {
+  min-width: 0;
 }
 
 h1 {
@@ -48,7 +107,7 @@ h1 {
 
 .sub {
   color: var(--ink-muted);
-  margin: 0 0 12px;
+  margin: 0;
   font-size: 12px;
 }
 
@@ -72,7 +131,6 @@ h1 {
 .panel-title {
   font-size: 11px;
   font-weight: 600;
-  text-transform: uppercase;
   letter-spacing: 0;
   color: var(--ink-muted);
   margin: 0 0 8px;

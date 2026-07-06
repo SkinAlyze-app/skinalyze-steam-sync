@@ -28,6 +28,7 @@ const statusLine = document.getElementById('status-line')!;
 const steamLine = document.getElementById('steam-line')!;
 const detectBtn = document.getElementById('detect-btn') as HTMLButtonElement;
 const manualSyncBtn = document.getElementById('manual-sync-btn') as HTMLButtonElement;
+const steamSyncToggle = document.getElementById('steam-sync-toggle') as HTMLInputElement;
 const msg = document.getElementById('msg')!;
 const privacyLink = document.getElementById('privacy-link') as HTMLAnchorElement;
 
@@ -54,6 +55,9 @@ let connectivityCheckGeneration = 0;
 let resumePollId: ReturnType<typeof setInterval> | null = null;
 let syncBusy = false;
 let detectBusy = false;
+let steamSyncEnabled = true;
+let steamSyncSaving = false;
+let activeSteamId64: string | null = null;
 
 function stopResumePoll(): void {
   if (resumePollId != null) {
@@ -72,14 +76,16 @@ function setMsg(text: string, err = false, warn = false): void {
 
 function updateActionButtons(): void {
   const busy = syncBusy || detectBusy;
-  detectBtn.disabled = busy;
-  manualSyncBtn.disabled = busy;
+  detectBtn.disabled = busy || steamSyncSaving;
+  manualSyncBtn.disabled = busy || steamSyncSaving || !steamSyncEnabled;
+  steamSyncToggle.disabled = syncBusy || steamSyncSaving;
   detectBtn.textContent = detectBusy ? 'Checking...' : DETECT_DEFAULT_LABEL;
-  manualSyncBtn.textContent = syncBusy ? 'Syncing...' : MANUAL_DEFAULT_LABEL;
+  manualSyncBtn.textContent = syncBusy ? 'Syncing...' : steamSyncEnabled ? MANUAL_DEFAULT_LABEL : 'Steam sync off';
   detectBtn.classList.toggle('is-loading', detectBusy);
   manualSyncBtn.classList.toggle('is-loading', syncBusy);
   detectBtn.setAttribute('aria-busy', detectBusy ? 'true' : 'false');
   manualSyncBtn.setAttribute('aria-busy', syncBusy ? 'true' : 'false');
+  steamSyncToggle.setAttribute('aria-busy', steamSyncSaving ? 'true' : 'false');
 }
 
 function setSyncBusy(busy: boolean): void {
@@ -193,6 +199,9 @@ async function refreshUi(): Promise<void> {
   if (!res.ok) {
     pairSection.hidden = false;
     statusSection.hidden = true;
+    activeSteamId64 = null;
+    steamSyncEnabled = true;
+    updateActionButtons();
     return;
   }
   const d = res.data as {
@@ -205,11 +214,15 @@ async function refreshUi(): Promise<void> {
     last_error?: string | null;
     paired_steam_ids?: string[];
     pairing_count?: number;
+    steam_sync_enabled?: boolean;
   };
 
   if (!d.paired) {
     pairSection.hidden = false;
     statusSection.hidden = true;
+    activeSteamId64 = null;
+    steamSyncEnabled = true;
+    updateActionButtons();
     return;
   }
 
@@ -217,10 +230,18 @@ async function refreshUi(): Promise<void> {
   statusSection.hidden = false;
   statusLine.textContent = `Paired${d.user_handle ? ` as ${d.user_handle}` : ''}`;
   const pairedSteamIds = d.paired_steam_ids ?? [];
+  activeSteamId64 = d.steam_expected ?? pairedSteamIds[0] ?? null;
+  const statusSteamSyncEnabled = d.steam_sync_enabled !== false;
+  if (!steamSyncSaving) {
+    steamSyncEnabled = statusSteamSyncEnabled;
+    steamSyncToggle.checked = statusSteamSyncEnabled;
+  }
+  updateActionButtons();
+
   let steamText =
     pairedSteamIds.length > 1
-      ? `Linked Steam IDs: ${pairedSteamIds.join(', ')}`
-      : `Linked Steam ID: ${d.steam_expected ?? pairedSteamIds[0] ?? '-'}`;
+      ? `Linked Steam accounts: ${pairedSteamIds.join(', ')}`
+      : `Linked Steam account: ${d.steam_expected ?? pairedSteamIds[0] ?? '-'}`;
   if (d.last_sync_at) {
     steamText += ` · Last sync: ${new Date(d.last_sync_at).toLocaleString()}`;
   }
@@ -229,7 +250,9 @@ async function refreshUi(): Promise<void> {
   }
   steamLine.textContent = steamText;
 
-  if (d.last_error) {
+  if (!steamSyncEnabled) {
+    setMsg('Steam sync is off. Manual and automatic sync are paused.', false, true);
+  } else if (d.last_error) {
     setMsg(friendlyInventorySyncError(d.last_error), true);
   } else {
     setMsg('');
@@ -241,6 +264,46 @@ async function refreshUi(): Promise<void> {
     });
   }
 }
+
+steamSyncToggle.addEventListener('change', async () => {
+  if (syncBusy) {
+    steamSyncToggle.checked = steamSyncEnabled;
+    return;
+  }
+
+  const previous = steamSyncEnabled;
+  const next = steamSyncToggle.checked;
+  steamSyncSaving = true;
+  steamSyncEnabled = next;
+  updateActionButtons();
+  setMsg(next ? 'Enabling Steam sync...' : 'Disabling Steam sync...', false, !next);
+
+  try {
+    const res = await send<ExtensionResponse>({
+      type: 'SET_STEAM_SYNC_ENABLED',
+      enabled: next,
+      steamId64: activeSteamId64,
+    });
+    if (!res.ok) {
+      steamSyncEnabled = previous;
+      steamSyncToggle.checked = previous;
+      setMsg(res.error || 'Could not save Steam sync setting.', true);
+      return;
+    }
+
+    const data = res.data as { steam_sync_enabled?: boolean } | undefined;
+    steamSyncEnabled = data?.steam_sync_enabled !== false;
+    steamSyncToggle.checked = steamSyncEnabled;
+    setMsg(
+      steamSyncEnabled ? 'Steam sync enabled.' : 'Steam sync is off. Manual and automatic sync are paused.',
+      false,
+      !steamSyncEnabled
+    );
+  } finally {
+    steamSyncSaving = false;
+    updateActionButtons();
+  }
+});
 
 pairBtn.addEventListener('click', async () => {
   if (pairBtn.disabled) return;
@@ -301,6 +364,10 @@ detectBtn.addEventListener('click', async () => {
 
 manualSyncBtn.addEventListener('click', async () => {
   if (syncBusy || detectBusy) return;
+  if (!steamSyncEnabled) {
+    setMsg('Turn on Steam sync to run a manual sync.', false, true);
+    return;
+  }
 
   setMsg('Starting manual sync...');
   setSyncBusy(true);

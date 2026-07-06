@@ -31,6 +31,7 @@ export type PairedAccount = {
   client_id?: string | null;
   last_sync_at?: string | null;
   last_error?: string | null;
+  steam_sync_enabled: boolean;
 };
 
 /** Automatic sync policy used by background alarms and Steam page-load triggers. */
@@ -58,6 +59,7 @@ function normalizePairing(raw: unknown): PairedAccount | null {
     client_id: typeof obj.client_id === 'string' ? obj.client_id : null,
     last_sync_at: typeof obj.last_sync_at === 'string' ? obj.last_sync_at : null,
     last_error: typeof obj.last_error === 'string' ? obj.last_error : null,
+    steam_sync_enabled: typeof obj.steam_sync_enabled === 'boolean' ? obj.steam_sync_enabled : true,
   };
 }
 
@@ -101,6 +103,7 @@ export async function getPairings(): Promise<PairedAccount[]> {
       user_handle: typeof raw[KEYS.userHandle] === 'string' ? raw[KEYS.userHandle] : null,
       last_sync_at: typeof raw[KEYS.lastSyncAt] === 'string' ? raw[KEYS.lastSyncAt] : null,
       last_error: typeof raw[KEYS.lastError] === 'string' ? raw[KEYS.lastError] : null,
+      steam_sync_enabled: true,
     });
     await chrome.storage.local.set({ [KEYS.pairings]: pairings });
   }
@@ -140,6 +143,7 @@ export async function getStorage(): Promise<{
   lastError: string | null;
   pairings: PairedAccount[];
   pairedSteamIds: string[];
+  steamSyncEnabled: boolean;
 }> {
   const [raw, pairings, active] = await Promise.all([
     chrome.storage.local.get([KEYS.lastSteamDetected, KEYS.lastError, KEYS.lastSyncAt]),
@@ -155,6 +159,7 @@ export async function getStorage(): Promise<{
     lastError: active?.last_error ?? ((raw[KEYS.lastError] as string) || null),
     pairings,
     pairedSteamIds: pairings.map((p) => p.steam_id64),
+    steamSyncEnabled: active?.steam_sync_enabled ?? true,
   };
 }
 
@@ -166,6 +171,7 @@ export async function setPaired(data: {
   client_id?: string | null;
 }): Promise<void> {
   const pairings = await getPairings();
+  const existing = pairings.find((p) => p.steam_id64 === data.steam_id64) ?? null;
   const next: PairedAccount = {
     token: data.token,
     steam_id64: data.steam_id64,
@@ -173,6 +179,7 @@ export async function setPaired(data: {
     user_handle: data.user_handle ?? null,
     client_id: data.client_id ?? null,
     last_error: null,
+    steam_sync_enabled: existing?.steam_sync_enabled ?? true,
   };
   const filtered = pairings.filter((p) => p.steam_id64 !== next.steam_id64);
   const updated = [...filtered, next];
@@ -182,6 +189,35 @@ export async function setPaired(data: {
     [KEYS.lastError]: '',
   });
   await writeLegacyActive(next);
+}
+
+export async function setSteamSyncEnabled(
+  enabled: boolean,
+  steamId64?: string | null
+): Promise<PairedAccount | null> {
+  const pairings = await getPairings();
+  const active = await getActivePairing();
+  const targetSteamId = steamId64 || active?.steam_id64 || '';
+  if (!targetSteamId) return null;
+
+  let updatedPairing: PairedAccount | null = null;
+  const updated = pairings.map((p) => {
+    if (p.steam_id64 !== targetSteamId) return p;
+    updatedPairing = { ...p, steam_sync_enabled: enabled };
+    return updatedPairing;
+  });
+
+  if (!updatedPairing) return null;
+
+  await chrome.storage.local.set({ [KEYS.pairings]: updated });
+  if (active?.steam_id64 === targetSteamId) {
+    await writeLegacyActive(updatedPairing);
+  }
+  return updatedPairing;
+}
+
+export function isSteamSyncEnabledForPairing(pairing: PairedAccount | null | undefined): boolean {
+  return pairing?.steam_sync_enabled !== false;
 }
 
 export async function clearPaired(): Promise<void> {

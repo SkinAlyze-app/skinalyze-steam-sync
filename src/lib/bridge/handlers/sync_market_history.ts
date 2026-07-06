@@ -1,6 +1,6 @@
 import { apiPost, messageFromExtensionApiBody } from '@/lib/api';
 import { fetchSteamMarketHistoryForSync } from '@/lib/steam-market-history';
-import { getPairingForSteamId, getPairings, setLastError } from '@/lib/storage';
+import { getPairingForSteamId, getPairings, isSteamSyncEnabledForPairing, setLastError } from '@/lib/storage';
 import { detectLoggedInSteamId64 } from '@/lib/steam-detect';
 import {
   friendlyMarketHistorySyncError,
@@ -75,6 +75,10 @@ export async function handleSyncMarketHistory(): Promise<{ ok: true; count: numb
           ? 'This Steam account is not paired with SkinAlyze. Pair it in Settings → Integrations.'
           : 'Not logged into Steam in this browser.'
       );
+    }
+    if (!isSteamSyncEnabledForPairing(pairing)) {
+      resetMarketHistorySyncProgressIdle();
+      return { ok: true, count: 0 };
     }
 
     setMarketHistorySyncProgress('opening_market');
