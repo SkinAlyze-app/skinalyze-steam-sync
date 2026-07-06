@@ -26,6 +26,24 @@
       <section id="status-section" class="panel" hidden>
         <p id="status-line" class="status-line"></p>
         <p id="steam-line" class="steam-line"></p>
+        <div id="health-grid" class="health-grid" aria-live="polite" hidden>
+          <div class="health-card">
+            <span>Workspace</span>
+            <strong id="health-workspace">-</strong>
+          </div>
+          <div class="health-card">
+            <span>Inventory</span>
+            <strong id="health-inventory">-</strong>
+          </div>
+          <div class="health-card">
+            <span>Trade offers</span>
+            <strong id="health-offers">-</strong>
+          </div>
+          <div class="health-card">
+            <span>Market history</span>
+            <strong id="health-market">-</strong>
+          </div>
+        </div>
 
         <div id="progress-panel" class="progress-panel" aria-live="polite" hidden>
           <div id="inv-progress-row" class="progress-row" hidden>

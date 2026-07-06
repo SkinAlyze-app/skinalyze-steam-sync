@@ -19,6 +19,16 @@ function send<T>(msg: object): Promise<T> {
 
 type ProgressSlice = SyncProgressState['inventory'] | SyncProgressState['tradeOffers'] | SyncProgressState['marketHistory'];
 type SyncProgressPayload = SyncProgressState;
+type ExtensionMePayload = {
+  workspace_name?: string | null;
+  workspace_type?: string | null;
+  inventory_assets_count?: number | null;
+  last_inventory_total?: number | null;
+  trade_offers_count?: number | null;
+  active_trade_offers_count?: number | null;
+  market_history_rows_count?: number | null;
+  pending_market_history_rows_count?: number | null;
+};
 
 const pairSection = document.getElementById('pair-section')!;
 const statusSection = document.getElementById('status-section')!;
@@ -26,6 +36,11 @@ const codeInput = document.getElementById('code') as HTMLInputElement;
 const pairBtn = document.getElementById('pair-btn') as HTMLButtonElement;
 const statusLine = document.getElementById('status-line')!;
 const steamLine = document.getElementById('steam-line')!;
+const healthGrid = document.getElementById('health-grid')!;
+const healthWorkspace = document.getElementById('health-workspace')!;
+const healthInventory = document.getElementById('health-inventory')!;
+const healthOffers = document.getElementById('health-offers')!;
+const healthMarket = document.getElementById('health-market')!;
 const detectBtn = document.getElementById('detect-btn') as HTMLButtonElement;
 const manualSyncBtn = document.getElementById('manual-sync-btn') as HTMLButtonElement;
 const steamSyncToggle = document.getElementById('steam-sync-toggle') as HTMLInputElement;
@@ -72,6 +87,37 @@ function setMsg(text: string, err = false, warn = false): void {
   msg.className = 'small';
   if (err) msg.classList.add('err');
   else if (warn) msg.classList.add('warn');
+}
+
+function formatCompactCount(value: number | null | undefined): string {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '-';
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n);
+}
+
+function renderExtensionHealth(data: ExtensionMePayload | null): void {
+  if (!data) {
+    healthGrid.hidden = true;
+    return;
+  }
+
+  const workspaceName = data.workspace_name?.trim() || 'Workspace';
+  const workspaceType = data.workspace_type ? ` · ${data.workspace_type.replace('_', ' ')}` : '';
+  const inventoryCount = data.inventory_assets_count ?? data.last_inventory_total ?? null;
+  const offerCount = data.trade_offers_count ?? null;
+  const activeOffers = Number(data.active_trade_offers_count) || 0;
+  const marketRows = data.market_history_rows_count ?? null;
+  const pendingMarketRows = Number(data.pending_market_history_rows_count) || 0;
+
+  healthWorkspace.textContent = `${workspaceName}${workspaceType}`;
+  healthInventory.textContent = `${formatCompactCount(inventoryCount)} items`;
+  healthOffers.textContent = activeOffers > 0
+    ? `${formatCompactCount(offerCount)} total · ${formatCompactCount(activeOffers)} active`
+    : `${formatCompactCount(offerCount)} total`;
+  healthMarket.textContent = pendingMarketRows > 0
+    ? `${formatCompactCount(marketRows)} rows · ${formatCompactCount(pendingMarketRows)} pending`
+    : `${formatCompactCount(marketRows)} rows`;
+  healthGrid.hidden = false;
 }
 
 function updateActionButtons(): void {
@@ -201,6 +247,7 @@ async function refreshUi(): Promise<void> {
     statusSection.hidden = true;
     activeSteamId64 = null;
     steamSyncEnabled = true;
+    renderExtensionHealth(null);
     updateActionButtons();
     return;
   }
@@ -222,6 +269,7 @@ async function refreshUi(): Promise<void> {
     statusSection.hidden = true;
     activeSteamId64 = null;
     steamSyncEnabled = true;
+    renderExtensionHealth(null);
     updateActionButtons();
     return;
   }
@@ -250,18 +298,25 @@ async function refreshUi(): Promise<void> {
   }
   steamLine.textContent = steamText;
 
+  void send<ExtensionResponse>({ type: 'CHECK_EXTENSION_ME' }).then((ping) => {
+    if (thisRefreshGen !== connectivityCheckGeneration) return;
+    const pingData = ping.ok ? (ping.data as { me_ok?: boolean; data?: ExtensionMePayload } | undefined) : undefined;
+    if (!ping.ok || !pingData?.me_ok) {
+      renderExtensionHealth(null);
+      if (steamSyncEnabled && !d.last_error) {
+        setMsg('Could not reach SkinAlyze. Check the server address used when building the extension.', true);
+      }
+      return;
+    }
+    renderExtensionHealth(pingData.data ?? null);
+  });
+
   if (!steamSyncEnabled) {
     setMsg('Steam sync is off. Manual and automatic sync are paused.', false, true);
   } else if (d.last_error) {
     setMsg(friendlyInventorySyncError(d.last_error), true);
   } else {
     setMsg('');
-    void send<ExtensionResponse>({ type: 'CHECK_EXTENSION_ME' }).then((ping) => {
-      if (thisRefreshGen !== connectivityCheckGeneration) return;
-      if (!ping.ok || !(ping.data as { me_ok?: boolean })?.me_ok) {
-        setMsg('Could not reach SkinAlyze (check API URL used when building the extension).', true);
-      }
-    });
   }
 }
 

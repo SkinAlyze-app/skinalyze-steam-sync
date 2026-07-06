@@ -215,6 +215,38 @@ input[type='number'] {
   line-height: 1.4;
 }
 
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.health-card {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid rgba(154, 169, 191, 0.14);
+  border-radius: 8px;
+  background: rgba(14, 19, 27, 0.72);
+}
+
+.health-card span {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--ink-muted);
+  font-size: 10px;
+}
+
+.health-card strong {
+  display: block;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .actions {
   display: flex;
   flex-direction: column;
