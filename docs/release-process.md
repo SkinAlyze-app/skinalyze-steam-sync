@@ -50,11 +50,11 @@ On Windows, use Explorer to zip the **contents** of `dist`, or PowerShell `Compr
 - [ ] GitHub Release notes summarize user-facing changes.
 - [ ] Attach **`skinalyze-sync-extension.zip`** to the GitHub Release (required for beta testers; release workflow can attach it on tag push).
 
-## Distribution during beta
+## Public GitHub distribution
 
-- Ship **GitHub Release zips** only (sideload / Load unpacked). See [README.md](../README.md) — Beta testers.
-- **Chrome Web Store** is intentionally **deferred** until after sideload beta feedback; do not upload to CWS for v0.1.0 beta.
+- Ship GitHub Release zips for the public Steam sync component when you want testers to sideload this repository build.
+- Release notes should be explicit that this source tree builds the public Steam sync component.
 
-## Chrome Web Store (later)
+## Chrome Web Store
 
-When ready post-beta, upload the same zip built from a tagged commit. Store distribution is controlled by Google signing. Users auditing this repo should compare tagged source, CI logs/artifacts, and the store listing version string.
+The Chrome Web Store build may be either this public Steam sync build or an official SkinAlyze build with additional proprietary SkinAlyze features. If the store build includes proprietary features, do not describe the public GitHub zip as reproducing every store feature. Keep the store listing and release notes clear about which parts are open source.

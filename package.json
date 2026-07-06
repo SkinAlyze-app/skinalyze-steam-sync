@@ -1,7 +1,7 @@
 {
   "name": "skinalyze-sync-extension",
-  "version": "0.1.4",
-  "description": "SkinAlyze Sync — Chrome MV3 extension to sync Steam CS2 inventory and trade data with your SkinAlyze account (open source for transparency).",
+  "version": "0.1.5",
+  "description": "SkinAlyze Sync — open-source Chrome MV3 Steam sync component for SkinAlyze.",
   "license": "MIT",
   "keywords": [
     "skinalyze",

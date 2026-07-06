@@ -1,9 +1,9 @@
 # Roadmap
 
-## Future marketplace integrations
+## Public repository scope
 
-Third-party marketplace page helpers (Buff, YouPin, and similar) are **not** part of the current extension.
+Third-party marketplace page helpers and Instant Sell marketplace quote collection are **not** part of this public Steam sync repository.
 
-If added later, they would use **optional host permissions per marketplace**, not broad `*://*/*` patterns. Marketplace session tokens, cookies, or loyalty API secrets would **not** be sent to SkinAlyze APIs.
+Official SkinAlyze browser-extension distributions may include additional proprietary SkinAlyze features outside this repository. Public builds from this repository should stay limited to Steam sync permissions and behavior.
 
 No broad host permissions are planned for v0.1.x.

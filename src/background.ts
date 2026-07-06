@@ -8,7 +8,7 @@ import { handleSyncTradeOffers } from '@/lib/bridge/handlers/sync_trade_offers';
 import { handleSyncMarketHistory } from '@/lib/bridge/handlers/sync_market_history';
 import { handleSyncAll, type SyncAllResult } from '@/lib/bridge/handlers/sync_all';
 import { applyPeriodicSyncAlarm, registerPeriodicSync, onAlarm } from '@/lib/alarms';
-import { getAutomationSettings, getStorage } from '@/lib/storage';
+import { getAutomationSettings, getStorage, setSteamSyncEnabled } from '@/lib/storage';
 import { getHydratedSyncProgress } from '@/lib/sync-progress';
 import { createSingleFlight } from '@/lib/single-flight';
 import type { ExtensionMessage, ExtensionResponse } from '@/shared/types';
@@ -30,6 +30,17 @@ async function dispatch(msg: ExtensionMessage): Promise<ExtensionResponse> {
       case 'GET_STATUS': {
         const data = await handleGetStatus();
         return { ok: true, data };
+      }
+      case 'SET_STEAM_SYNC_ENABLED': {
+        const pairing = await setSteamSyncEnabled(Boolean(msg.enabled), msg.steamId64);
+        if (!pairing) return { ok: false, error: 'No paired Steam account found.' };
+        return {
+          ok: true,
+          data: {
+            steam_id64: pairing.steam_id64,
+            steam_sync_enabled: pairing.steam_sync_enabled,
+          },
+        };
       }
       case 'CHECK_EXTENSION_ME': {
         const r = await handleCheckExtensionMe();
@@ -115,6 +126,7 @@ chrome.runtime.onStartup.addListener(() => {
 onAlarm(async () => {
   const st = await getStorage();
   if (st.pairings.length === 0) return;
+  if (!st.steamSyncEnabled) return;
   const s = await getAutomationSettings();
   if (!s.autoSyncEnabled) return;
   if (s.autoSyncInventory) await handleSyncInventory();
@@ -132,6 +144,7 @@ chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
     if (!auto.autoSyncEnabled || !auto.hybridOnActivePage) return;
     const st = await getStorage();
     if (st.pairings.length === 0) return;
+    if (!st.steamSyncEnabled) return;
 
     const now = Date.now();
     const invPath = /steamcommunity\.com\/(id|profiles)\/[^/]+\/inventory/i.test(url);

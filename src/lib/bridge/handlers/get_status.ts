@@ -10,6 +10,7 @@ export async function handleGetStatus(): Promise<{
   last_error: string | null;
   paired_steam_ids: string[];
   pairing_count: number;
+  steam_sync_enabled: boolean;
 }> {
   const s = await getStorage();
   if (!s.token) {
@@ -23,6 +24,7 @@ export async function handleGetStatus(): Promise<{
       last_error: s.lastError,
       paired_steam_ids: s.pairedSteamIds,
       pairing_count: s.pairings.length,
+      steam_sync_enabled: s.steamSyncEnabled,
     };
   }
 
@@ -41,5 +43,6 @@ export async function handleGetStatus(): Promise<{
     last_error: s.lastError,
     paired_steam_ids: s.pairedSteamIds,
     pairing_count: s.pairings.length,
+    steam_sync_enabled: s.steamSyncEnabled,
   };
 }

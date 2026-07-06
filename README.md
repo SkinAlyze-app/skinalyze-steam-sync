@@ -1,8 +1,10 @@
 # SkinAlyze Sync
 
-Open-source **Chrome Manifest V3** extension that syncs your **Steam CS2 inventory** and **trade-offer summaries** with your [SkinAlyze](https://skinalyze.app) account while you are logged into Steam in the same browser.
+Open-source **Chrome Manifest V3** Steam sync component that syncs your **Steam CS2 inventory**, **trade-offer summaries**, and **market-history summaries** with your [SkinAlyze](https://skinalyze.app) account while you are logged into Steam in the same browser.
 
-This repository is the **public source** for SkinAlyze Sync. You can read the code, build the extension yourself, and verify what data leaves your machine. The extension talks to SkinAlyze’s documented `/api/extension/*` HTTP API after you pair it in SkinAlyze **Settings → Integrations → Browser extension**.
+This repository contains the open-source Steam inventory and trade-sync component of the SkinAlyze browser extension. You can read the code, build this public Steam sync component yourself, and verify its Steam/SkinAlyze network calls. The extension talks to SkinAlyze’s documented `/api/extension/*` HTTP API after you pair it in SkinAlyze **Settings → Integrations → Browser extension**.
+
+Official SkinAlyze browser-extension distributions may include additional proprietary SkinAlyze features, including Instant Sell marketplace quote collection, that are not included in this repository. Builds from this repository reproduce the public Steam sync component, not necessarily every feature in the official Chrome Web Store distribution.
 
 Repository: [github.com/SkinAlyze-app/skinalyze-steam-sync](https://github.com/SkinAlyze-app/skinalyze-steam-sync)
 
@@ -12,7 +14,7 @@ Download: [SkinAlyze Sync on the Chrome Web Store](https://chromewebstore.google
 
 - **Transparency**: audit permissions, network calls, and payloads.
 - **Trust**: pairing uses a short code from SkinAlyze; the extension stores a SkinAlyze-issued bearer token locally (see [PRIVACY.md](./PRIVACY.md)).
-- **Reproducible builds**: `npm ci` and `npm run build` produce the `dist/` layout documented below.
+- **Reproducible public build**: `npm ci` and `npm run build` produce the public Steam sync `dist/` layout documented below.
 
 Chrome Web Store distribution is available from the [SkinAlyze Sync listing](https://chromewebstore.google.com/detail/skinalyze-sync/nmapmijejpgeeoffklgmofohciahcagg). Release zips from [GitHub Releases](https://github.com/SkinAlyze-app/skinalyze-steam-sync/releases) remain available for testers who need sideloaded builds.
 
@@ -22,14 +24,16 @@ Chrome Web Store distribution is available from the [SkinAlyze Sync listing](htt
 - **Pair** with SkinAlyze using a one-time code from SkinAlyze settings.
 - **Sync inventory** to SkinAlyze (asset id, class/instance ids, market name, tradability, icon URL, etc.).
 - **Sync trade-offer and trade-history summaries** from Steam Web APIs for SkinAlyze reconciliation (see [PRIVACY.md](./PRIVACY.md)).
+- **Pause or resume Steam sync** per paired Steam account from the popup.
 
 ## Automatic sync (after pairing)
 
 Once paired, sync runs **automatically** — you do not need to open the popup each time.
 
-- **Every 20 minutes** (background): inventory and trade-offer summaries sync to SkinAlyze while the extension stays paired.
+- **Every 20 minutes** (background): inventory, trade-offer, and market-history summaries sync to SkinAlyze while the extension stays paired and Steam sync is enabled.
 - **When you open relevant Steam pages**: after you finish loading your Steam Community **inventory** or **trade offers** page, the extension may sync again (short cooldown between page-triggered runs).
-- **Manual sync** in the popup still works anytime; automatic sync stays enabled.
+- **Steam sync toggle** in the popup pauses or resumes manual, periodic, and page-triggered Steam sync for the active paired Steam account.
+- **Manual sync** in the popup still works while Steam sync is enabled.
 
 **What is synced:** summary and trading data SkinAlyze needs (inventory rows, offer/history summaries, link-status badges on Steam inventory pages).
 

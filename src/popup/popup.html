@@ -8,8 +8,13 @@
   </head>
   <body>
     <main class="wrap">
-      <h1>SkinAlyze Sync</h1>
-      <p class="sub">Steam inventory sync</p>
+      <header class="brand-head">
+        <img class="brand-logo" src="../icons/logo.png" alt="" aria-hidden="true" />
+        <div class="brand-copy">
+          <h1>SkinAlyze Sync</h1>
+          <p class="sub">Steam inventory sync</p>
+        </div>
+      </header>
 
       <section id="pair-section" class="panel">
         <p class="panel-title">Pair extension</p>
@@ -44,6 +49,13 @@
         </div>
 
         <p class="panel-title">Actions</p>
+        <label class="toggle-row" for="steam-sync-toggle">
+          <input id="steam-sync-toggle" type="checkbox" />
+          <span>
+            <strong>Steam sync</strong>
+            <small>Allow inventory, trade offers, and market history sync.</small>
+          </span>
+        </label>
         <div class="actions">
           <button id="detect-btn" type="button" class="btn btn-secondary">Check Steam login</button>
           <button id="manual-sync-btn" type="button" class="btn">Manual sync</button>

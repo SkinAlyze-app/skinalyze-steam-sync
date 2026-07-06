@@ -1,6 +1,6 @@
 import { apiPost, messageFromExtensionApiBody } from '@/lib/api';
 import { fetchTradeOffersAndHistoryForSync } from '@/lib/steam-trade';
-import { getPairingForSteamId, getPairings, setLastError } from '@/lib/storage';
+import { getPairingForSteamId, getPairings, isSteamSyncEnabledForPairing, setLastError } from '@/lib/storage';
 import { detectLoggedInSteamId64 } from '@/lib/steam-detect';
 import {
   friendlyTradeOffersSyncError,
@@ -78,6 +78,10 @@ export async function handleSyncTradeOffers(): Promise<{ ok: true; count: number
           ? 'This Steam account is not paired with SkinAlyze. Pair it in Settings → Integrations.'
           : 'Not logged into Steam in this browser.'
       );
+    }
+    if (!isSteamSyncEnabledForPairing(pairing)) {
+      resetTradeOffersSyncProgressIdle();
+      return { ok: true, count: 0 };
     }
 
     setTradeOffersSyncProgress('fetching_history');
