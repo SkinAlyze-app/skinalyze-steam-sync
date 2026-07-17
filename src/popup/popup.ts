@@ -8,13 +8,12 @@ import {
   isProgressSliceVisibleMh,
   isProgressSliceVisibleTo,
 } from '@/lib/sync-progress';
+import { browser } from '@/shared/browser-api';
 import type { ExtensionResponse } from '@/shared/types';
 import type { SyncProgressState } from '@/lib/sync-progress';
 
-function send<T>(msg: object): Promise<T> {
-  return new Promise((resolve) => {
-    chrome.runtime.sendMessage(msg, (r) => resolve(r as T));
-  });
+async function send<T>(msg: object): Promise<T> {
+  return await browser.runtime.sendMessage(msg) as T;
 }
 
 type ProgressSlice = SyncProgressState['inventory'] | SyncProgressState['tradeOffers'] | SyncProgressState['marketHistory'];

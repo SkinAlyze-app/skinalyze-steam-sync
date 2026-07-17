@@ -1,17 +1,14 @@
 {
   "manifest_version": 3,
   "name": "SkinAlyze Sync",
-  "version": "0.1.5",
-  "description": "Sync your Steam CS2 inventory with SkinAlyze (skinalyze.app) for reconciliation and trade awareness.",
+  "version": "0.2.2",
+  "description": "Sync your Steam Counter-Strike inventory with SkinAlyze (skinalyze.app) for reconciliation and trade awareness.",
   "permissions": ["storage", "alarms", "scripting", "tabs"],
   "host_permissions": [
     "https://steamcommunity.com/*",
     "https://api.steampowered.com/*",
     "__API_ORIGIN__/*"
   ],
-  "background": {
-    "service_worker": "background.js"
-  },
   "action": {
     "default_popup": "popup/popup.html",
     "default_icon": {

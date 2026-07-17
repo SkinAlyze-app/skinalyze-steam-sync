@@ -1,6 +1,8 @@
+import { browser } from '@/shared/browser-api';
+
 /**
  * Inventory / trade-offers sync progress for popup polling.
- * In-memory for live updates; mirrored to chrome.storage.session (fallback: local)
+ * In-memory for live updates; mirrored to browser.storage.session (fallback: local)
  * so reopening the popup can resume progress after the popup document is destroyed.
  */
 
@@ -52,6 +54,8 @@ const STORAGE_KEY = 'skinalyze_sync_progress_snapshot_v1';
 
 /** completed/failed snapshots expire after this so the popup does not show stale banners forever */
 export const TERMINAL_TTL_MS = 10_000;
+/** The Steam tab reader has the same hard timeout; stale persisted reads should not block popup reopen. */
+export const INVENTORY_READING_STALE_MS = 120_000;
 /** If SW died mid-sync, do not show "active" forever */
 const ACTIVE_STALE_MS = 15 * 60 * 1000;
 
@@ -64,7 +68,7 @@ const state: SyncProgressState = {
 const INV_LABELS: Record<InventorySyncPhase, string> = {
   idle: '',
   checking_steam: 'Checking Steam login…',
-  opening_steam_tab: 'Opening CS2 inventory tab…',
+  opening_steam_tab: 'Opening Counter-Strike inventory tab…',
   waiting_for_inventory_page: 'Waiting for Steam page…',
   reading_inventory: 'Reading inventory from Steam…',
   uploading_inventory: 'Uploading to SkinAlyze…',
@@ -169,6 +173,9 @@ function isStaleInventory(slice: SyncProgressSlice<InventorySyncPhase>): boolean
   if (isTerminalInv(slice.phase)) {
     return now - slice.updatedAt > TERMINAL_TTL_MS;
   }
+  if (slice.phase === 'reading_inventory') {
+    return now - slice.updatedAt > INVENTORY_READING_STALE_MS;
+  }
   return now - slice.updatedAt > ACTIVE_STALE_MS;
 }
 
@@ -208,10 +215,10 @@ function sanitizeMarketHistorySlice(
   return isStaleMarketHistory(slice) ? idleMarketHistorySlice() : slice;
 }
 
-function getStorageArea(): chrome.storage.StorageArea | null {
-  if (typeof chrome === 'undefined' || !chrome.storage) return null;
-  if (chrome.storage.session) return chrome.storage.session;
-  return chrome.storage.local;
+function getStorageArea() {
+  if (!browser.storage) return null;
+  if (browser.storage.session) return browser.storage.session;
+  return browser.storage.local;
 }
 
 function persistSnapshot(): void {
@@ -396,10 +403,10 @@ export function friendlyInventorySyncError(raw: string | null | undefined): stri
       s
     )
   ) {
-    return 'Steam inventory tab was closed or became unavailable. Open your CS2 inventory in a tab (or let the extension open one) and try again.';
+    return 'Steam inventory tab was closed or became unavailable. Open your Counter-Strike inventory in a tab (or let the extension open one) and try again.';
   }
   if (/timed out|timeout/i.test(s)) {
-    return 'Steam took too long to load. Open steamcommunity.com, load your CS2 inventory, then sync again.';
+    return 'Steam took too long to load. Open steamcommunity.com, load your Counter-Strike inventory, then sync again.';
   }
   if (/Not logged into Steam|Wrong Steam account/i.test(s)) return s;
   if (/^STEAM_RATE_LIMIT:/i.test(s)) {
@@ -408,7 +415,7 @@ export function friendlyInventorySyncError(raw: string | null | undefined): stri
   if (/^STEAM_INVENTORY_CTX2_SOFT_FAIL:/i.test(s)) {
     return (
       s.replace(/^STEAM_INVENTORY_CTX2_SOFT_FAIL:\s*/i, '').trim() ||
-      'Steam did not return your main inventory. Load your CS2 inventory on steamcommunity.com, then sync again.'
+      'Steam did not return your main inventory. Load your Counter-Strike inventory on steamcommunity.com, then sync again.'
     );
   }
   if (/^STEAM_INVENTORY_CTX2_INCOMPLETE:/i.test(s)) {
@@ -444,8 +451,11 @@ export function friendlyMarketHistorySyncError(raw: string | null | undefined): 
   }
   const s = String(raw).trim();
   if (!s || s === 'undefined') return 'Something went wrong. Try again.';
+  if (/Steam market history HTTP 429/i.test(s)) {
+    return 'Steam rate-limited market history. Inventory and trade offers can still sync. Wait a few minutes before retrying.';
+  }
   if (/HTTP \d{3}/.test(s)) return `SkinAlyze server error (${s}). Try again in a moment.`;
   if (/Not logged|Wrong Steam account|Steam account/i.test(s)) return s;
-  if (/market history HTTP 429|rate/i.test(s)) return 'Steam rate-limited market history. Wait a minute and try again.';
+  if (/rate/i.test(s)) return 'Steam rate-limited market history. Wait a few minutes before retrying.';
   return s;
 }

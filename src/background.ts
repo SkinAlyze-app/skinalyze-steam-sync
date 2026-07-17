@@ -12,6 +12,7 @@ import { getAutomationSettings, getStorage, setSteamSyncEnabled } from '@/lib/st
 import { getHydratedSyncProgress } from '@/lib/sync-progress';
 import { createSingleFlight } from '@/lib/single-flight';
 import type { ExtensionMessage, ExtensionResponse } from '@/shared/types';
+import { browser } from '@/shared/browser-api';
 
 let lastHybridInv = 0;
 let lastHybridOffers = 0;
@@ -85,14 +86,14 @@ async function dispatch(msg: ExtensionMessage): Promise<ExtensionResponse> {
   }
 }
 
-chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendResponse) => {
+browser.runtime.onMessage.addListener((rawMessage: unknown, sender: { tab?: { id?: number } }) => {
+  const message = rawMessage as ExtensionMessage;
   if (message.type === 'EXECUTE_PAGE_STEAM') {
     const tabId = sender.tab?.id;
     if (!tabId) {
-      sendResponse({ ok: false, error: 'No tab' });
-      return false;
+      return Promise.resolve({ ok: false, error: 'No tab' });
     }
-    void chrome.scripting
+    return browser.scripting
       .executeScript({
         target: { tabId },
         world: 'MAIN',
@@ -103,30 +104,27 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
       })
       .then((inj) => {
         const steam = String(inj[0]?.result ?? '');
-        sendResponse({ ok: true, steam });
+        return { ok: true, steam };
       })
-      .catch((e) => sendResponse({ ok: false, error: e instanceof Error ? e.message : String(e) }));
-    return true;
+      .catch((e) => ({ ok: false, error: e instanceof Error ? e.message : String(e) }));
   }
 
-  void dispatch(message).then(sendResponse);
-  return true;
+  return dispatch(message);
 });
 
-chrome.runtime.onInstalled.addListener(() => {
+browser.runtime.onInstalled.addListener(() => {
   registerPeriodicSync();
 });
 
 registerPeriodicSync();
 
-chrome.runtime.onStartup.addListener(() => {
+browser.runtime.onStartup.addListener(() => {
   void applyPeriodicSyncAlarm();
 });
 
 onAlarm(async () => {
   const st = await getStorage();
   if (st.pairings.length === 0) return;
-  if (!st.steamSyncEnabled) return;
   const s = await getAutomationSettings();
   if (!s.autoSyncEnabled) return;
   if (s.autoSyncInventory) await handleSyncInventory();
@@ -134,8 +132,12 @@ onAlarm(async () => {
   if (s.autoSyncMarketHistory) await handleSyncMarketHistory();
 });
 
-chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
+browser.tabs.onUpdated.addListener((tabId, info, tab) => {
   if (info.status !== 'complete') return;
+  // Sync helpers open inactive Steam tabs themselves. Treat only a user's
+  // active Steam page as a hybrid-sync trigger so those helper tabs cannot
+  // recursively start a duplicate sync.
+  if (!tab.active) return;
   const url = tab.url ?? '';
   if (!url.includes('steamcommunity.com')) return;
 
@@ -144,7 +146,6 @@ chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
     if (!auto.autoSyncEnabled || !auto.hybridOnActivePage) return;
     const st = await getStorage();
     if (st.pairings.length === 0) return;
-    if (!st.steamSyncEnabled) return;
 
     const now = Date.now();
     const invPath = /steamcommunity\.com\/(id|profiles)\/[^/]+\/inventory/i.test(url);

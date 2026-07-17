@@ -1,22 +1,22 @@
 # SkinAlyze Sync
 
-Open-source **Chrome Manifest V3** Steam sync component that syncs your **Steam CS2 inventory**, **trade-offer summaries**, and **market-history summaries** with your [SkinAlyze](https://skinalyze.app) account while you are logged into Steam in the same browser.
+Open-source **Chrome and Firefox Manifest V3** Steam sync component that syncs your **Steam CS2 inventory**, **trade-offer summaries**, and **market-history summaries** with your [SkinAlyze](https://skinalyze.app) account while you are logged into Steam in the same browser.
 
 This repository contains the open-source Steam inventory and trade-sync component of the SkinAlyze browser extension. You can read the code, build this public Steam sync component yourself, and verify its Steam/SkinAlyze network calls. The extension talks to SkinAlyze’s documented `/api/extension/*` HTTP API after you pair it in SkinAlyze **Settings → Integrations → Browser extension**.
 
-Official SkinAlyze browser-extension distributions may include additional proprietary SkinAlyze features, including Instant Sell marketplace quote collection, that are not included in this repository. Builds from this repository reproduce the public Steam sync component, not necessarily every feature in the official Chrome Web Store distribution.
+Official SkinAlyze browser-extension distributions may include additional proprietary SkinAlyze features, including Instant Sell marketplace quote collection, that are not included in this repository. Builds from this repository reproduce the public Steam sync component, not necessarily every feature in the official browser-store distributions.
 
 Repository: [github.com/SkinAlyze-app/skinalyze-steam-sync](https://github.com/SkinAlyze-app/skinalyze-steam-sync)
 
-Download: [SkinAlyze Sync on the Chrome Web Store](https://chromewebstore.google.com/detail/skinalyze-sync/nmapmijejpgeeoffklgmofohciahcagg)
+Download: [Chrome Web Store](https://chromewebstore.google.com/detail/skinalyze-sync/nmapmijejpgeeoffklgmofohciahcagg) · [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/skinalyze-sync/)
 
 ## Why open source
 
 - **Transparency**: audit permissions, network calls, and payloads.
 - **Trust**: pairing uses a short code from SkinAlyze; the extension stores a SkinAlyze-issued bearer token locally (see [PRIVACY.md](./PRIVACY.md)).
-- **Reproducible public build**: `npm ci` and `npm run build` produce the public Steam sync `dist/` layout documented below.
+- **Reproducible public builds**: `npm ci` and `npm run build` produce separate public Steam sync artifacts in `dist/chrome/` and `dist/firefox/`.
 
-Chrome Web Store distribution is available from the [SkinAlyze Sync listing](https://chromewebstore.google.com/detail/skinalyze-sync/nmapmijejpgeeoffklgmofohciahcagg). Release zips from [GitHub Releases](https://github.com/SkinAlyze-app/skinalyze-steam-sync/releases) remain available for testers who need sideloaded builds.
+Official releases are distributed through the [Chrome Web Store](https://chromewebstore.google.com/detail/skinalyze-sync/nmapmijejpgeeoffklgmofohciahcagg) and [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/skinalyze-sync/). GitHub Releases include auditable browser packages and reviewer source artifacts.
 
 ## What it does
 
@@ -50,9 +50,9 @@ Once paired, sync runs **automatically** — you do not need to open the popup e
 
 | Permission | Purpose |
 | --- | --- |
-| `storage` | Pairing token, last sync timestamps, and UI state in `chrome.storage.local`. |
+| `storage` | Pairing token, last sync timestamps, and UI state in browser extension-local storage. |
 | `alarms` | Background sync about every **20 minutes** when paired (inventory + trade-offer summaries). |
-| `scripting` | Steam inventory reads and coordination from the service worker. |
+| `scripting` | Steam inventory reads and coordination from the Chrome service worker or Firefox background script. |
 | `tabs` | Open or query Steam Community tabs when needed for inventory/trade data collection. |
 
 **Host permissions**
@@ -63,7 +63,7 @@ Once paired, sync runs **automatically** — you do not need to open the popup e
 
 ## Build from source
 
-Requirements: **Node 20+**, **npm 10+**.
+Requirements: **Node 20.9+**, **npm 10+**.
 
 ```bash
 npm ci
@@ -91,24 +91,36 @@ npm run ci:prod
 SKINALYZE_API_ORIGIN=http://localhost:3000 npm run build
 ```
 
+Build commands:
+
+- `npm run build` — both browsers.
+- `npm run build:chrome` — `dist/chrome/` only.
+- `npm run build:firefox` — `dist/firefox/` only.
+- `npm run lint:firefox` — validate the Firefox artifact with Mozilla `web-ext`.
+- `npm run package:release` — production builds plus Chrome, Firefox AMO, and reviewer-source ZIPs.
+
 Load unpacked in Chrome:
 
 1. Open `chrome://extensions`
 2. Enable **Developer mode**
-3. **Load unpacked** → select this repo’s **`dist/`** folder
+3. **Load unpacked** → select this repo’s **`dist/chrome/`** folder
 
-Scripts: `npm run typecheck`, `npm test`, `npm run build`, `npm run ci`, `npm run ci:prod`. Regenerate icons: `npm run icons` (requires `sharp` once: `npm install --no-save sharp`).
+Load temporarily in Firefox 140+:
 
-## Beta testers (Chrome sideload)
+1. Open `about:debugging#/runtime/this-firefox`.
+2. Select **Load Temporary Add-on**.
+3. Choose **`dist/firefox/manifest.json`**.
+
+Scripts: `npm run typecheck`, `npm test`, `npm run build`, `npm run lint:firefox`, `npm run ci`, `npm run ci:prod`. Regenerate icons: `npm run icons` (requires `sharp` once: `npm install --no-save sharp`).
+
+## Store installation
 
 1. On [skinalyze.app](https://skinalyze.app), open **Settings → Integrations → Browser extension** (when extension beta is enabled on the server).
 2. Link Steam and **Generate pairing code**.
-3. Download **`skinalyze-sync-extension.zip`** from the [latest GitHub Release](https://github.com/SkinAlyze-app/skinalyze-steam-sync/releases/latest).
-4. Unzip so `manifest.json` is at the top level of the folder.
-5. Chrome → `chrome://extensions` → **Developer mode** → **Load unpacked** → select that folder.
-6. Enter the pairing code in the extension popup; use **Manual sync** while logged into Steam in the same browser.
+3. Install from the [Chrome Web Store](https://chromewebstore.google.com/detail/skinalyze-sync/nmapmijejpgeeoffklgmofohciahcagg) or [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/skinalyze-sync/).
+4. Enter the pairing code in the extension popup; use **Manual sync** while logged into Steam in the same browser.
 
-**Chrome only** for this beta (Manifest V3).
+Firefox support is desktop-only and requires Firefox 140 or newer. Firefox private browsing and Firefox for Android are not supported.
 
 ## Pairing
 

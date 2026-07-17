@@ -9,6 +9,9 @@ const DEBUG_LOGS = false;
 
 type SteamAsset = RawSteamAsset;
 type SteamDesc = RawSteamDesc;
+export type FetchCs2InventoryOptions = {
+  trackProgress?: boolean;
+};
 
 const SKIP_TYPES = new Set(['CSGO_Type_StorageUnit']);
 const SKIP_QUALITIES = new Set(['genuine']);
@@ -124,11 +127,15 @@ function normalizeOne(
 }
 
 /** Full CS2 inventory via a steamcommunity.com tab (authenticated cookies). */
-export async function fetchCs2Inventory(steamId64: string): Promise<SteamInventoryItem[]> {
+export async function fetchCs2Inventory(
+  steamId64: string,
+  options: FetchCs2InventoryOptions = {}
+): Promise<SteamInventoryItem[]> {
   const { assets: rawAssets, descriptions: rawDescs } = await fetchInventoryViaTab(
     steamId64,
     CS2_APP_ID,
-    CS2_CONTEXT_ID
+    CS2_CONTEXT_ID,
+    options
   );
 
   if (DEBUG_LOGS) {

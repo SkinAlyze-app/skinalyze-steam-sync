@@ -2,59 +2,54 @@
 
 ## Versioning
 
-1. Bump **`src/manifest.json`** `version` (Chrome extension version).
-2. Bump **`package.json`** `version` to match (keeps npm metadata aligned).
+Keep `src/manifest.json` and `package.json` on the same Semantic Version. Release tags use `v<version>`.
 
-Use [Semantic Versioning](https://semver.org/) for user-visible extension releases.
+## Production build and packages
 
-## Build a shipping zip (from source)
-
-Prerequisites: Node **20+**, npm **10+**.
+Requirements: Node 20.9+, npm 10+.
 
 ```bash
 npm ci
-npm run typecheck
-npm test
-SKINALYZE_API_ORIGIN=https://www.skinalyze.app npm run build
+npm run package:release
 ```
 
-Or use the production CI script (same checks):
+`package:release` always builds against `https://www.skinalyze.app`, runs typecheck, unit tests, both browser builds, manifest assertions, and Firefox lint, then creates:
 
-```bash
-npm run ci:prod
-```
+- `artifacts/skinalyze-sync-chrome-v<version>.zip`
+- `artifacts/skinalyze-sync-firefox-amo-v<version>.zip`
+- `artifacts/skinalyze-sync-source-v<version>.zip`
 
-**Important:** `npm run build` and `npm run ci` alone use the default API origin **`http://localhost:3000`** unless you set `SKINALYZE_API_ORIGIN` (or `NEXT_PUBLIC_BASE_URL`) in the environment. Always verify **`dist/manifest.json`** before shipping.
+Verify both manifests before publishing:
 
-Verify **`dist/manifest.json`**:
+- Chrome uses only `background.service_worker`.
+- Firefox uses only `background.scripts`, Gecko ID `skinalyze-sync@skinalyze.app`, Firefox minimum `140.0`, and the documented data-collection declarations.
+- Both include only the expected SkinAlyze API origin, Steam Community, and Steam Web API host permissions.
+- No manifest contains `__API_ORIGIN__`, a localhost production origin, `<all_urls>`, or marketplace hosts.
 
-- `host_permissions` includes `https://www.skinalyze.app/*` for production releases.
-- `https://steamcommunity.com/*` and `https://api.steampowered.com/*` are present.
-- `permissions` match what you intend to ship.
+## Distribution boundary
 
-Create a zip of **the contents** of `dist/` (Chrome expects `manifest.json` at the root of the unpacked folder / zip root):
+These packages reproduce only the public Steam sync component. Official browser-store builds may contain additional proprietary SkinAlyze features. Release notes must say which artifact is the public component and must not claim byte-for-byte parity with a store build that contains proprietary code.
 
-```bash
-# macOS / Linux
-(cd dist && zip -r ../skinalyze-sync-extension.zip .)
-```
+## Store distribution
 
-On Windows, use Explorer to zip the **contents** of `dist`, or PowerShell `Compress-Archive` targeting the files inside `dist`.
+### Chrome
+
+Upload the Chrome ZIP through the Chrome Web Store developer dashboard. The ZIP has `manifest.json` at its root.
+
+### Firefox Add-ons (manual)
+
+Upload the Firefox AMO ZIP as a listed extension through the AMO Developer Hub. Upload the source ZIP when AMO requests human-readable source for the minified Webpack output. Follow [amo-submission.md](./amo-submission.md) for identity, privacy declarations, reviewer notes, and smoke tests.
+
+AMO performs signing and automatic updates. Do not present the unsigned AMO ZIP as an installable Firefox package.
 
 ## Pre-flight checklist
 
-- [ ] `npm run ci:prod` passes (or equivalent: typecheck, test, production build).
-- [ ] No secrets in tracked files (search for `sk_`, `pk_`, private URLs, `.env`).
-- [ ] `README.md` and `PRIVACY.md` match current manifest permissions and endpoints.
-- [ ] Git tag matches `manifest.json` version (example: `v0.1.0`).
-- [ ] GitHub Release notes summarize user-facing changes.
-- [ ] Attach **`skinalyze-sync-extension.zip`** to the GitHub Release (required for beta testers; release workflow can attach it on tag push).
-
-## Public GitHub distribution
-
-- Ship GitHub Release zips for the public Steam sync component when you want testers to sideload this repository build.
-- Release notes should be explicit that this source tree builds the public Steam sync component.
-
-## Chrome Web Store
-
-The Chrome Web Store build may be either this public Steam sync build or an official SkinAlyze build with additional proprietary SkinAlyze features. If the store build includes proprietary features, do not describe the public GitHub zip as reproducing every store feature. Keep the store listing and release notes clear about which parts are open source.
+- [ ] `npm run ci:prod` passes, including both builds and `web-ext lint`.
+- [ ] `npm run package:release` creates all three versioned artifacts.
+- [ ] Chrome and Firefox manual smoke tests pass for pairing, sync, badges, pause/resume, and background alarms.
+- [ ] `README.md`, `PRIVACY.md`, and store privacy disclosures match the manifest and payload behavior.
+- [ ] No Instant Sell, quote-adapter, marketplace-session, remote-job, or broad-host-permission implementation is present.
+- [ ] No `.env`, credentials, cookies, captured responses, or personal data appear in source or artifacts.
+- [ ] Git tag, package version, both manifests, release notes, and intended store versions match.
+- [ ] GitHub Release contains all artifacts and labels the Firefox ZIP as an AMO upload package.
+- [ ] After AMO approval, confirm `https://addons.mozilla.org/firefox/addon/skinalyze-sync/`.

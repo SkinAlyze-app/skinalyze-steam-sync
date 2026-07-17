@@ -5,6 +5,7 @@
 
 import { decodeLink, type CEconItemPreviewDataBlock } from '@csfloat/cs2-inspect-serializer';
 import type { RawSteamAsset, RawSteamAssetProperty, RawSteamDesc } from '@/lib/steam-tab-fetch';
+import { browser } from '@/shared/browser-api';
 
 export type AssetProperty = RawSteamAssetProperty;
 
@@ -214,34 +215,28 @@ function emptyMetadata(): DecodedInspectMetadata {
 }
 
 async function cacheGet(hash: string): Promise<DecodedInspectMetadata | null> {
-  if (typeof chrome === 'undefined' || !chrome.storage?.local) return null;
+  if (!browser.storage?.local) return null;
   const key = `${CACHE_PREFIX}:${hash}`;
-  const row = await new Promise<Record<string, unknown>>((resolve) => {
-    chrome.storage.local.get([key], (r) => resolve(r as Record<string, unknown>));
-  });
+  const row = await browser.storage.local.get([key]);
   const raw = row[key] as CacheRow | undefined;
   if (!raw || typeof raw.t !== 'number' || !raw.v) return null;
   if (Date.now() - raw.t > CACHE_TTL_MS) {
-    chrome.storage.local.remove(key);
+    browser.storage.local.remove(key);
     return null;
   }
   return raw.v;
 }
 
 async function cacheSet(hash: string, v: DecodedInspectMetadata): Promise<void> {
-  if (typeof chrome === 'undefined' || !chrome.storage?.local) return;
+  if (!browser.storage?.local) return;
   const key = `${CACHE_PREFIX}:${hash}`;
   const row: CacheRow = { v, t: Date.now() };
-  await new Promise<void>((resolve) => {
-    chrome.storage.local.set({ [key]: row }, () => resolve());
-  });
+  await browser.storage.local.set({ [key]: row });
   await cachePruneIfNeeded();
 }
 
 async function cachePruneIfNeeded(): Promise<void> {
-  const all = await new Promise<Record<string, unknown>>((resolve) => {
-    chrome.storage.local.get(null, (r) => resolve(r as Record<string, unknown>));
-  });
+  const all = await browser.storage.local.get(null);
   const keys = Object.keys(all).filter((k) => k.startsWith(`${CACHE_PREFIX}:`));
   if (keys.length <= CACHE_MAX_ENTRIES) return;
   const scored = keys
@@ -251,7 +246,7 @@ async function cachePruneIfNeeded(): Promise<void> {
     })
     .sort((a, b) => a.t - b.t);
   const remove = scored.slice(0, Math.max(0, scored.length - CACHE_MAX_ENTRIES)).map((x) => x.k);
-  if (remove.length) await new Promise<void>((resolve) => chrome.storage.local.remove(remove, () => resolve()));
+  if (remove.length) await browser.storage.local.remove(remove);
 }
 
 export async function enrichSteamAssetMetadata(args: {

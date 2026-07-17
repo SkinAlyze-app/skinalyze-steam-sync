@@ -1,13 +1,15 @@
 {
   "name": "skinalyze-sync-extension",
-  "version": "0.1.5",
-  "description": "SkinAlyze Sync — open-source Chrome MV3 Steam sync component for SkinAlyze.",
+  "version": "0.2.2",
+  "description": "SkinAlyze Sync — open-source Chrome and Firefox MV3 Steam sync component for SkinAlyze.",
   "license": "MIT",
   "keywords": [
     "skinalyze",
     "cs2",
     "steam",
+    "browser-extension",
     "chrome-extension",
+    "firefox-addon",
     "manifest-v3"
   ],
   "homepage": "https://www.skinalyze.app",
@@ -19,31 +21,40 @@
     "url": "https://github.com/SkinAlyze-app/skinalyze-steam-sync/issues"
   },
   "engines": {
-    "node": ">=20.0.0",
+    "node": ">=20.9.0",
     "npm": ">=10.0.0"
   },
   "scripts": {
-    "build": "webpack --mode production",
-    "watch": "webpack --mode development --watch",
-    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && npm run build:chrome && npm run build:firefox && npm run verify:builds",
+    "build:chrome": "webpack --mode production --env target=chrome",
+    "build:firefox": "webpack --mode production --env target=firefox",
+    "watch": "webpack --mode development --watch --env target=chrome",
+    "watch:firefox": "webpack --mode development --watch --env target=firefox",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true});require('fs').rmSync('artifacts',{recursive:true,force:true})\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsx scripts/run-tests.ts",
     "icons": "node scripts/generate-icons.mjs",
-    "ci": "npm run typecheck && npm run test && npm run build",
-    "ci:prod": "npm run typecheck && npm run test && node scripts/ci-prod.mjs"
+    "verify:builds": "node scripts/verify-builds.mjs",
+    "lint:firefox": "web-ext lint --source-dir dist/firefox",
+    "package:release": "node scripts/package-release.mjs",
+    "ci": "npm run typecheck && npm run test && npm run build && npm run lint:firefox",
+    "ci:prod": "node scripts/ci-prod.mjs"
   },
   "dependencies": {
     "@csfloat/cs2-inspect-serializer": "^1.1.6",
-    "buffer": "^6.0.3"
+    "buffer": "^6.0.3",
+    "webextension-polyfill": "^0.12.0"
   },
   "devDependencies": {
-    "@types/chrome": "^0.0.287",
-    "copy-webpack-plugin": "^12.0.2",
+    "@types/webextension-polyfill": "^0.12.5",
+    "archiver": "^8.0.0",
+    "copy-webpack-plugin": "^14.0.0",
     "css-loader": "^7.1.2",
     "mini-css-extract-plugin": "^2.9.2",
     "ts-loader": "^9.5.2",
     "tsx": "^4.20.6",
     "typescript": "5.4.5",
+    "web-ext": "^10.5.0",
     "webpack": "^5.97.1",
     "webpack-cli": "^6.0.1"
   }

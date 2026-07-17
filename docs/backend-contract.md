@@ -19,7 +19,7 @@ Authentication: after pairing, requests send `Authorization: Bearer <token>` exc
 | Field | Type | Notes |
 | --- | --- | --- |
 | `code` | string | Normalized uppercase alphanumeric pairing code from SkinAlyze. |
-| `extension_version` | string | From `chrome.runtime.getManifest().version`. |
+| `extension_version` | string | From the browser manifest. Omitted by Firefox when optional technical-data consent is not granted. |
 
 **Response JSON (success):**
 

@@ -26,7 +26,7 @@ const MARKET_HISTORY_SYNC_KEYS = new Set([
   'client_meta',
 ]);
 
-const FORBIDDEN_SUBSTRINGS = ['data-loyalty_webapi_token', 'document.cookie', '<html'];
+const FORBIDDEN_SUBSTRINGS = ['data-loyalty_webapi_token', 'document.cookie', '<html', 'sessionid'];
 
 export function runPayloadShapeTests(): void {
   const invBody = {

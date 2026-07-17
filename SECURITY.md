@@ -13,7 +13,7 @@ Instead, email **security@skinalyze.app** with:
 - A short description of the issue and its impact
 - Steps to reproduce (or a proof-of-concept)
 - Affected version(s) / commit SHA if known
-- Whether you believe the issue is exploitable in the Chrome Web Store build vs. source-only scenarios
+- Whether you believe the issue is exploitable in an official browser-store build vs. source-only scenarios
 
 We aim to acknowledge receipt within **72 hours** for valid reports and coordinate disclosure.
 

@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 
 import {
+  friendlyMarketHistorySyncError,
   isProgressSliceActiveInv,
   isProgressSliceVisibleInv,
   isProgressSliceVisibleMh,
   isProgressSliceVisibleTo,
+  INVENTORY_READING_STALE_MS,
   TERMINAL_TTL_MS,
   type InventorySyncPhase,
   type SyncProgressSlice,
@@ -24,6 +26,11 @@ function invSlice(
 }
 
 export function runSyncProgressVisibilityTests(): void {
+  assert.equal(
+    friendlyMarketHistorySyncError('Steam market history HTTP 429'),
+    'Steam rate-limited market history. Inventory and trade offers can still sync. Wait a few minutes before retrying.'
+  );
+
   const realNow = Date.now;
   const now = 1_000_000;
 
@@ -33,6 +40,18 @@ export function runSyncProgressVisibilityTests(): void {
     const active = invSlice('reading_inventory', now);
     assert.equal(isProgressSliceVisibleInv(active), true, 'active progress should hydrate as visible');
     assert.equal(isProgressSliceActiveInv(active), true, 'active progress should block actions');
+
+    const oldReadingInventory = invSlice('reading_inventory', now - INVENTORY_READING_STALE_MS - 1);
+    assert.equal(
+      isProgressSliceVisibleInv(oldReadingInventory),
+      false,
+      'stale reading-inventory progress should clear after the hard read timeout'
+    );
+    assert.equal(
+      isProgressSliceActiveInv(oldReadingInventory),
+      false,
+      'stale reading-inventory progress should not block actions after popup reopen'
+    );
 
     const terminal = invSlice('completed', now);
     assert.equal(isProgressSliceVisibleInv(terminal), true, 'fresh terminal progress should remain visible');
