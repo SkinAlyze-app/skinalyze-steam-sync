@@ -1,4 +1,5 @@
 import { getStorage } from '@/lib/storage';
+import { browser } from '@/shared/browser-api';
 
 export const PERIODIC_SYNC_ALARM = 'skinalyze_periodic_sync';
 
@@ -10,10 +11,10 @@ export const PERIODIC_SYNC_INTERVAL_MINUTES = 20;
  * When not paired, clears the alarm to avoid unnecessary wakeups.
  */
 export async function applyPeriodicSyncAlarm(): Promise<void> {
-  await chrome.alarms.clear(PERIODIC_SYNC_ALARM);
+  await browser.alarms.clear(PERIODIC_SYNC_ALARM);
   const st = await getStorage();
   if (st.pairings.length === 0) return;
-  await chrome.alarms.create(PERIODIC_SYNC_ALARM, { periodInMinutes: PERIODIC_SYNC_INTERVAL_MINUTES });
+  await browser.alarms.create(PERIODIC_SYNC_ALARM, { periodInMinutes: PERIODIC_SYNC_INTERVAL_MINUTES });
 }
 
 export function registerPeriodicSync(): void {
@@ -21,7 +22,7 @@ export function registerPeriodicSync(): void {
 }
 
 export function onAlarm(listener: (name: string) => void): void {
-  chrome.alarms.onAlarm.addListener((a) => {
+  browser.alarms.onAlarm.addListener((a) => {
     if (a.name === PERIODIC_SYNC_ALARM) listener(PERIODIC_SYNC_ALARM);
   });
 }

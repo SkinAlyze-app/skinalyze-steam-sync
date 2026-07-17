@@ -4,9 +4,12 @@
  * Fallback: legacy `g_ActiveInventory` / `UserYou.getInventory` (incomplete for large trade-protected buckets).
  */
 
-import { setInventorySyncProgress } from '@/lib/sync-progress';
+import { withTimeout } from '@/lib/promise-timeout';
+import { setInventorySyncProgress, type InventorySyncPhase } from '@/lib/sync-progress';
+import { browser } from '@/shared/browser-api';
 
 const LOAD_TIMEOUT_MS = 15000;
+const INVENTORY_READ_TIMEOUT_MS = 120000;
 const INVENTORY_READY_MS = 12000;
 const INVENTORY_POLL_MS = 150;
 const POST_LOAD_DELAY_MS = 2000;
@@ -57,6 +60,9 @@ export type RawSteamDesc = {
 type PageInvOk = { ok: true; assets: RawSteamAsset[]; descriptions: RawSteamDesc[] };
 type PageInvErr = { ok: false; error: string; assets: []; descriptions: [] };
 type PageInvResult = PageInvOk | PageInvErr;
+export type FetchInventoryViaTabOptions = {
+  trackProgress?: boolean;
+};
 
 /**
  * Injected into the tab (MAIN world). Tries paginated JSON /inventory first; falls back to g_ActiveInventory.
@@ -67,6 +73,7 @@ async function readInventoryFromPageMain(
   contextId: number
 ): Promise<PageInvResult> {
   const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+  const INVENTORY_JSON_REQUEST_TIMEOUT_MS = 20000;
   /** CS2 trade-protected bucket (reference: CSGO Trader inventory.js context 16). */
   const TRADE_PROTECTED_CTX = 16;
 
@@ -239,8 +246,44 @@ async function readInventoryFromPageMain(
      * (trade-protected only). Primary (ctx 2) never returns null on success — caller throws if exhausted.
      */
     async function fetchPageJsonWithRetries(pageUrl: string): Promise<Record<string, unknown> | null> {
+      async function fetchPageWithTimeout(): Promise<{ res: Response; body: Record<string, unknown> | null }> {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), INVENTORY_JSON_REQUEST_TIMEOUT_MS);
+        try {
+          const res = await fetch(pageUrl, { credentials: 'include', signal: controller.signal });
+          if (!res.ok || res.status === 403 || res.status === 429 || res.status >= 500) {
+            return { res, body: null };
+          }
+          const body = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+          return { res, body };
+        } catch (e) {
+          if (controller.signal.aborted) {
+            throw new Error(`Inventory fetch ctx${ctx} timed out.`);
+          }
+          throw e;
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+
       for (let attempt = 0; attempt <= SOFT_FAIL_BACKOFF_MS.length; attempt++) {
-        const res = await fetch(pageUrl, { credentials: 'include' });
+        let pageResult: { res: Response; body: Record<string, unknown> | null };
+        try {
+          pageResult = await fetchPageWithTimeout();
+        } catch (e) {
+          if (attempt < SOFT_FAIL_BACKOFF_MS.length) {
+            await sleep(SOFT_FAIL_BACKOFF_MS[attempt]);
+            continue;
+          }
+          if (isProtected) return null;
+          throw new Error(
+            e instanceof Error && e.message
+              ? e.message
+              : 'Steam inventory request timed out. Wait a minute and try again.',
+          );
+        }
+
+        const { res, body } = pageResult;
         if (res.status === 403 && isProtected) {
           return null;
         }
@@ -263,7 +306,6 @@ async function readInventoryFromPageMain(
         if (!res.ok) {
           throw new Error(`Inventory fetch ctx${ctx} HTTP ${res.status}`);
         }
-        const body = (await res.json().catch(() => null)) as Record<string, unknown> | null;
         const ok = body != null && (body.success === 1 || body.success === true);
         if (ok && body) return body;
         if (isProtected) {
@@ -716,8 +758,8 @@ function waitForTabComplete(tabId: number, timeoutMs: number): Promise<void> {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      chrome.tabs.onUpdated.removeListener(onUpdated);
-      chrome.tabs.onRemoved.removeListener(onRemoved);
+      browser.tabs.onUpdated.removeListener(onUpdated);
+      browser.tabs.onRemoved.removeListener(onRemoved);
       fn();
     };
 
@@ -732,26 +774,24 @@ function waitForTabComplete(tabId: number, timeoutMs: number): Promise<void> {
       );
     }
 
-    function onUpdated(id: number, info: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab) {
+    function onUpdated(id: number, info: { status?: string }, tab: { url?: string }) {
       if (id !== tabId || info.status !== 'complete') return;
       if (tab.url && tab.url.includes('steamcommunity.com')) {
         finish(() => resolve());
       }
     }
 
-    chrome.tabs.onUpdated.addListener(onUpdated);
-    chrome.tabs.onRemoved.addListener(onRemoved);
-    void chrome.tabs.get(tabId, (t) => {
-      if (chrome.runtime.lastError) {
-        finish(() =>
-          reject(new Error('Steam tab was closed before it finished loading. Reopen Steam and try again.'))
-        );
-        return;
-      }
-      if (t.status === 'complete' && t.url?.includes('steamcommunity.com')) {
-        finish(() => resolve());
-      }
-    });
+    browser.tabs.onUpdated.addListener(onUpdated);
+    browser.tabs.onRemoved.addListener(onRemoved);
+    void browser.tabs.get(tabId)
+      .then((tab) => {
+        if (tab.status === 'complete' && tab.url?.includes('steamcommunity.com')) {
+          finish(() => resolve());
+        }
+      })
+      .catch(() => finish(() =>
+        reject(new Error('Steam tab was closed before it finished loading. Reopen Steam and try again.'))
+      ));
   });
 }
 
@@ -761,7 +801,7 @@ function inventoryUrlForProfile(steamId64: string, appId: number, contextId: num
 
 /** Always open a new steamcommunity tab (inactive) so the page loads fresh; caller must close when done. */
 async function openFreshSteamCommunityTab(url: string): Promise<number> {
-  const tab = await chrome.tabs.create({ url, active: false });
+  const tab = await browser.tabs.create({ url, active: false });
   if (tab.id == null) throw new Error('Could not open a Steam tab');
   await waitForTabComplete(tab.id, LOAD_TIMEOUT_MS);
   await new Promise((r) => setTimeout(r, POST_LOAD_DELAY_MS));
@@ -770,7 +810,7 @@ async function openFreshSteamCommunityTab(url: string): Promise<number> {
 
 async function closeTabSafe(tabId: number): Promise<void> {
   try {
-    await chrome.tabs.remove(tabId);
+    await browser.tabs.remove(tabId);
   } catch {
     // already closed or invalid
   }
@@ -779,32 +819,40 @@ async function closeTabSafe(tabId: number): Promise<void> {
 export async function fetchInventoryViaTab(
   steamId64: string,
   appId: number,
-  contextId: number
+  contextId: number,
+  options: FetchInventoryViaTabOptions = {}
 ): Promise<{ assets: RawSteamAsset[]; descriptions: RawSteamDesc[] }> {
+  const reportProgress = (phase: InventorySyncPhase) => {
+    if (options.trackProgress !== false) setInventorySyncProgress(phase);
+  };
   const targetUrl = inventoryUrlForProfile(steamId64, appId, contextId);
-  setInventorySyncProgress('opening_steam_tab');
+  reportProgress('opening_steam_tab');
   const tabId = await openFreshSteamCommunityTab(targetUrl);
   try {
-    setInventorySyncProgress('waiting_for_inventory_page');
+    reportProgress('waiting_for_inventory_page');
     await new Promise((r) => setTimeout(r, 50));
-    setInventorySyncProgress('reading_inventory');
+    reportProgress('reading_inventory');
 
     let results;
     try {
-      results = await chrome.scripting.executeScript({
-        target: { tabId },
-        world: 'MAIN',
-        func: readInventoryFromPageMain,
-        args: [steamId64, appId, contextId],
-      });
+      results = await withTimeout(
+        browser.scripting.executeScript({
+          target: { tabId },
+          world: 'MAIN',
+          func: readInventoryFromPageMain,
+          args: [steamId64, appId, contextId],
+        }),
+        INVENTORY_READ_TIMEOUT_MS,
+        'Steam inventory read timed out. Open steamcommunity.com, load your Counter-Strike inventory, then sync again.'
+      );
     } catch (e) {
-      const chromeErr = e instanceof Error ? e.message : String(e);
-      if (/No tab|invalid tab|cannot access|closed|receiving end|message port/i.test(chromeErr)) {
+      const browserError = e instanceof Error ? e.message : String(e);
+      if (/No tab|invalid tab|cannot access|closed|receiving end|message port/i.test(browserError)) {
         throw new Error(
           'Steam inventory tab was closed during sync. Reopen your CS2 inventory tab and try again.'
         );
       }
-      throw new Error(chromeErr || 'Could not read Steam inventory from the tab.');
+      throw new Error(browserError || 'Could not read Steam inventory from the tab.');
     }
 
     const result = results[0]?.result as PageInvResult | undefined;
@@ -844,7 +892,7 @@ export async function detectLoggedInSteamId64ViaTab(): Promise<string | null> {
   const homeUrl = 'https://steamcommunity.com/my/home/';
   const tabId = await openFreshSteamCommunityTab(homeUrl);
   try {
-    const main = await chrome.scripting.executeScript({
+    const main = await browser.scripting.executeScript({
       target: { tabId },
       world: 'MAIN',
       func: readGSteamIdMain,
@@ -852,7 +900,7 @@ export async function detectLoggedInSteamId64ViaTab(): Promise<string | null> {
     let id = String(main[0]?.result ?? '').trim();
     if (id.length >= 10) return id;
 
-    const iso = await chrome.scripting.executeScript({
+    const iso = await browser.scripting.executeScript({
       target: { tabId },
       func: fetchSteamIdFromHomeHtml,
     });

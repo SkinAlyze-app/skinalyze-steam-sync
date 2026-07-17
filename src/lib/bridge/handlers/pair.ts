@@ -1,8 +1,10 @@
 import { setPaired, setLastError } from '@/lib/storage';
+import { browser } from '@/shared/browser-api';
+import { canTransmitTechnicalData } from '@/shared/data-collection';
 import { extensionApiUrl } from '@/shared/constants';
 
-const MANIFEST = chrome.runtime.getManifest();
-const VERSION = MANIFEST.version ?? '0.1.0';
+const MANIFEST = browser.runtime.getManifest();
+const VERSION = MANIFEST.version ?? '0.2.2';
 
 export async function handlePair(code: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const trimmed = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -10,10 +12,14 @@ export async function handlePair(code: string): Promise<{ ok: true } | { ok: fal
     return { ok: false, error: 'Enter the 6-character code from SkinAlyze settings.' };
   }
 
+  const includeTechnicalData = await canTransmitTechnicalData();
   const res = await fetch(`${extensionApiUrl('/api/extension/pair/confirm')}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code: trimmed, extension_version: VERSION }),
+    body: JSON.stringify({
+      code: trimmed,
+      ...(includeTechnicalData ? { extension_version: VERSION } : {}),
+    }),
     credentials: 'omit',
   });
   const data = (await res.json().catch(() => ({}))) as {

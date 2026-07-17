@@ -1,3 +1,5 @@
+import { browser } from '@/shared/browser-api';
+
 const KEYS = {
   token: 'skinalyze_token',
   steamExpected: 'skinalyze_steam_id64_expected',
@@ -65,14 +67,14 @@ function normalizePairing(raw: unknown): PairedAccount | null {
 
 async function writeLegacyActive(pairing: PairedAccount | null): Promise<void> {
   if (!pairing) {
-    await chrome.storage.local.set({
+    await browser.storage.local.set({
       [KEYS.token]: '',
       [KEYS.steamExpected]: '',
       [KEYS.userHandle]: '',
     });
     return;
   }
-  await chrome.storage.local.set({
+  await browser.storage.local.set({
     [KEYS.token]: pairing.token,
     [KEYS.steamExpected]: pairing.steam_id64,
     [KEYS.userHandle]: pairing.user_handle ?? '',
@@ -80,7 +82,7 @@ async function writeLegacyActive(pairing: PairedAccount | null): Promise<void> {
 }
 
 export async function getPairings(): Promise<PairedAccount[]> {
-  const raw = await chrome.storage.local.get([
+  const raw = await browser.storage.local.get([
     KEYS.pairings,
     KEYS.token,
     KEYS.steamExpected,
@@ -94,18 +96,20 @@ export async function getPairings(): Promise<PairedAccount[]> {
     ? rawPairings.map(normalizePairing).filter((p: PairedAccount | null): p is PairedAccount => p !== null)
     : [];
 
-  const legacyToken = typeof raw[KEYS.token] === 'string' ? raw[KEYS.token] : '';
-  const legacySteam = typeof raw[KEYS.steamExpected] === 'string' ? raw[KEYS.steamExpected] : '';
+  const legacyTokenRaw = raw[KEYS.token];
+  const legacySteamRaw = raw[KEYS.steamExpected];
+  const legacyToken = typeof legacyTokenRaw === 'string' ? legacyTokenRaw : '';
+  const legacySteam = typeof legacySteamRaw === 'string' ? legacySteamRaw : '';
   if (legacyToken && legacySteam && !pairings.some((p: PairedAccount) => p.steam_id64 === legacySteam)) {
     pairings.push({
       token: legacyToken,
       steam_id64: legacySteam,
-      user_handle: typeof raw[KEYS.userHandle] === 'string' ? raw[KEYS.userHandle] : null,
-      last_sync_at: typeof raw[KEYS.lastSyncAt] === 'string' ? raw[KEYS.lastSyncAt] : null,
-      last_error: typeof raw[KEYS.lastError] === 'string' ? raw[KEYS.lastError] : null,
+      user_handle: typeof raw[KEYS.userHandle] === 'string' ? raw[KEYS.userHandle] as string : null,
+      last_sync_at: typeof raw[KEYS.lastSyncAt] === 'string' ? raw[KEYS.lastSyncAt] as string : null,
+      last_error: typeof raw[KEYS.lastError] === 'string' ? raw[KEYS.lastError] as string : null,
       steam_sync_enabled: true,
     });
-    await chrome.storage.local.set({ [KEYS.pairings]: pairings });
+    await browser.storage.local.set({ [KEYS.pairings]: pairings });
   }
 
   return pairings;
@@ -114,7 +118,7 @@ export async function getPairings(): Promise<PairedAccount[]> {
 export async function getActivePairing(): Promise<PairedAccount | null> {
   const [pairings, raw] = await Promise.all([
     getPairings(),
-    chrome.storage.local.get([KEYS.activeSteamId64, KEYS.steamExpected]),
+    browser.storage.local.get([KEYS.activeSteamId64, KEYS.steamExpected]),
   ]);
   const active =
     (typeof raw[KEYS.activeSteamId64] === 'string' && raw[KEYS.activeSteamId64]) ||
@@ -128,7 +132,7 @@ export async function getPairingForSteamId(steamId64: string | null | undefined)
   const pairings = await getPairings();
   const match = pairings.find((p) => p.steam_id64 === steamId64) ?? null;
   if (match) {
-    await chrome.storage.local.set({ [KEYS.activeSteamId64]: match.steam_id64 });
+    await browser.storage.local.set({ [KEYS.activeSteamId64]: match.steam_id64 });
     await writeLegacyActive(match);
   }
   return match;
@@ -146,7 +150,7 @@ export async function getStorage(): Promise<{
   steamSyncEnabled: boolean;
 }> {
   const [raw, pairings, active] = await Promise.all([
-    chrome.storage.local.get([KEYS.lastSteamDetected, KEYS.lastError, KEYS.lastSyncAt]),
+    browser.storage.local.get([KEYS.lastSteamDetected, KEYS.lastError, KEYS.lastSyncAt]),
     getPairings(),
     getActivePairing(),
   ]);
@@ -183,7 +187,7 @@ export async function setPaired(data: {
   };
   const filtered = pairings.filter((p) => p.steam_id64 !== next.steam_id64);
   const updated = [...filtered, next];
-  await chrome.storage.local.set({
+  await browser.storage.local.set({
     [KEYS.pairings]: updated,
     [KEYS.activeSteamId64]: next.steam_id64,
     [KEYS.lastError]: '',
@@ -209,7 +213,7 @@ export async function setSteamSyncEnabled(
 
   if (!updatedPairing) return null;
 
-  await chrome.storage.local.set({ [KEYS.pairings]: updated });
+  await browser.storage.local.set({ [KEYS.pairings]: updated });
   if (active?.steam_id64 === targetSteamId) {
     await writeLegacyActive(updatedPairing);
   }
@@ -221,7 +225,7 @@ export function isSteamSyncEnabledForPairing(pairing: PairedAccount | null | und
 }
 
 export async function clearPaired(): Promise<void> {
-  await chrome.storage.local.remove([
+  await browser.storage.local.remove([
     KEYS.token,
     KEYS.steamExpected,
     KEYS.userHandle,
@@ -239,26 +243,26 @@ async function updateActivePairing(patch: Partial<PairedAccount>): Promise<void>
   if (!active) return;
   const pairings = await getPairings();
   const updated = pairings.map((p) => (p.steam_id64 === active.steam_id64 ? { ...p, ...patch } : p));
-  await chrome.storage.local.set({ [KEYS.pairings]: updated });
+  await browser.storage.local.set({ [KEYS.pairings]: updated });
   await writeLegacyActive({ ...active, ...patch });
 }
 
 export async function setLastSyncAt(iso: string): Promise<void> {
-  await chrome.storage.local.set({ [KEYS.lastSyncAt]: iso });
+  await browser.storage.local.set({ [KEYS.lastSyncAt]: iso });
   await updateActivePairing({ last_sync_at: iso });
 }
 
 export async function setLastSteamDetected(steamId: string | null): Promise<void> {
-  await chrome.storage.local.set({ [KEYS.lastSteamDetected]: steamId ?? '' });
+  await browser.storage.local.set({ [KEYS.lastSteamDetected]: steamId ?? '' });
 }
 
 export async function setLastError(msg: string): Promise<void> {
-  await chrome.storage.local.set({ [KEYS.lastError]: msg });
+  await browser.storage.local.set({ [KEYS.lastError]: msg });
   await updateActivePairing({ last_error: msg });
 }
 
 export async function getLastInventorySyncItemCount(): Promise<number | null> {
-  const raw = await chrome.storage.local.get([KEYS.lastInvSyncItemCount]);
+  const raw = await browser.storage.local.get([KEYS.lastInvSyncItemCount]);
   const v = raw[KEYS.lastInvSyncItemCount];
   if (typeof v === 'number' && Number.isFinite(v) && v >= 0) return v;
   if (typeof v === 'string' && v.trim() !== '') {
@@ -270,7 +274,7 @@ export async function getLastInventorySyncItemCount(): Promise<number | null> {
 
 export async function setLastInventorySyncItemCount(count: number): Promise<void> {
   const n = Math.max(0, Math.floor(count));
-  await chrome.storage.local.set({ [KEYS.lastInvSyncItemCount]: n });
+  await browser.storage.local.set({ [KEYS.lastInvSyncItemCount]: n });
 }
 
 export async function getAutomationSettings(): Promise<AutomationSettings> {

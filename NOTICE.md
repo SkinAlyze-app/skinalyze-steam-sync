@@ -9,7 +9,8 @@ This extension bundles the following **runtime** dependencies (direct or via web
 | [base64-js](https://www.npmjs.com/package/base64-js) | Used by `buffer` | MIT |
 | [ieee754](https://www.npmjs.com/package/ieee754) | Used by `buffer` | BSD-3-Clause |
 | [crc-32](https://www.npmjs.com/package/crc-32) | Used by `@csfloat/cs2-inspect-serializer` | Apache-2.0 |
+| [webextension-polyfill](https://www.npmjs.com/package/webextension-polyfill) | Shared Promise-based browser API for Chrome and Firefox | MPL-2.0 |
 
-Development-only tools (TypeScript, webpack, etc.) are not shipped in the Chrome extension package.
+Development-only tools (TypeScript, webpack, `web-ext`, etc.) are not shipped in either browser extension package.
 
 For security reports, see [SECURITY.md](./SECURITY.md).

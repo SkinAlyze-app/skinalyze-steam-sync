@@ -4,9 +4,9 @@ This document describes what the **SkinAlyze Sync** browser extension can access
 
 ## Data categories
 
-### Local-only (Chrome extension storage)
+### Local-only browser extension storage
 
-Stored in `chrome.storage.local` on your machine:
+Stored in the browser's extension-local storage on your machine:
 
 - SkinAlyze **bearer token** after successful pairing (authenticates `/api/extension/*` requests).
 - Expected **Steam ID** and optional display handle from SkinAlyze when you pair.
@@ -35,6 +35,17 @@ All requests use `credentials: 'omit'` and send a **JSON body** or query as docu
 - **Inventory status badges** on the Steam inventory page: **asset id list** to resolve link status (`POST /api/extension/inventory/status`).
 - **Trade sync**: normalized **offer** and **trade history** summary rows returned from Steam APIs, plus **client-side metadata** about pagination (pages fetched, counts) (`POST /api/extension/trade-offers/sync`). This runs automatically after pairing (see **Automatic sync** below), not only when you press Manual sync in the popup.
 
+### Firefox data-consent categories
+
+Firefox 140+ displays Mozilla's built-in data-collection consent during installation. The Firefox build declares these required categories because Steam sync cannot work without them:
+
+- `authenticationInfo` — the one-time pairing code and SkinAlyze bearer token.
+- `personallyIdentifyingInfo` — the paired Steam ID and optional display handle.
+- `websiteContent` — normalized Steam inventory and trade data.
+- `financialAndPaymentInfo` — Steam market-history rows.
+
+`technicalAndInteraction` is optional. If it is not granted, the Firefox build omits the extension version from pairing requests. Inventory, trade, and market-history sync continue to work. The Firefox build does not run in private browsing windows.
+
 ### Not sent to SkinAlyze
 
 - Steam **passwords**
@@ -48,7 +59,7 @@ All requests use `credentials: 'omit'` and send a **JSON body** or query as docu
 
 After you pair with SkinAlyze, the extension keeps your account updated **without** requiring you to click sync every time while **Steam sync** is enabled in the popup:
 
-1. **Periodic background sync (about every 20 minutes):** While paired, the extension syncs **inventory** and **trade-offer / trade-history summaries** to SkinAlyze on a fixed interval using Chrome alarms.
+1. **Periodic background sync (about every 20 minutes):** While paired, the extension syncs **inventory** and **trade-offer / trade-history summaries** to SkinAlyze on a fixed interval using browser alarms.
 2. **Page-triggered sync:** When you finish loading a relevant **Steam Community inventory** or **trade offers** page in the same browser, the extension may run the same sync again after a short cooldown (typically a few minutes) so normal browsing stays up to date.
 3. **Manual sync:** The popup **Manual sync** button still runs inventory and trade sync on demand while Steam sync is enabled; automatic behavior continues afterward.
 4. **Pause control:** Turning Steam sync off pauses manual, periodic, and page-triggered Steam sync for the active paired Steam account until you turn it back on.
@@ -65,7 +76,7 @@ After you pair with SkinAlyze, the extension keeps your account updated **withou
 ## Threat model (what “open source” proves)
 
 - **Source on GitHub** lets you verify the public Steam sync component’s stated behavior by reading TypeScript, manifest permissions, and test expectations.
-- **Chrome Web Store** distributes a built package. Official SkinAlyze distributions may include proprietary SkinAlyze features that are not included in this repository; this repo builds the public Steam sync component.
+- **Chrome Web Store and Firefox Add-ons** distribute signed packages. Official SkinAlyze distributions may include proprietary SkinAlyze features that are not included in this repository; this repo builds the public Steam sync component.
 - **Malicious builds**: only install unpacked builds you built yourself, or releases from maintainers you trust.
 
 ## Contact

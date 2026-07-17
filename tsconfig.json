@@ -3,12 +3,14 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "strict": true,
     "skipLibCheck": true,
     "noEmit": false,
     "outDir": "dist-ts",
     "lib": ["ES2022", "DOM"],
-    "types": ["chrome"],
+    "types": ["webextension-polyfill"],
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]

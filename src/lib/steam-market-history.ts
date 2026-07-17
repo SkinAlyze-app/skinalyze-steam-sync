@@ -3,11 +3,14 @@ import {
   type SteamCurrencyCode,
   type ParsedSteamMoney,
 } from '@/lib/steam-market-history-parser';
+import { browser } from '@/shared/browser-api';
 
 const LOAD_TIMEOUT_MS = 15000;
 const POST_LOAD_DELAY_MS = 1200;
 const MARKET_HISTORY_COUNT = 50;
 const MARKET_HISTORY_MAX_PAGES = 20;
+const MARKET_HISTORY_PAGE_DELAY_MS = 5000;
+const MARKET_HISTORY_MAX_RETRIES = 2;
 
 export type SteamMarketHistoryRowForSync = {
   event_key: string;
@@ -68,8 +71,8 @@ function waitForTabComplete(tabId: number, timeoutMs: number): Promise<void> {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      chrome.tabs.onUpdated.removeListener(onUpdated);
-      chrome.tabs.onRemoved.removeListener(onRemoved);
+      browser.tabs.onUpdated.removeListener(onUpdated);
+      browser.tabs.onRemoved.removeListener(onRemoved);
       fn();
     };
 
@@ -82,27 +85,25 @@ function waitForTabComplete(tabId: number, timeoutMs: number): Promise<void> {
       finish(() => reject(new Error('Steam market tab was closed before it finished loading.')));
     }
 
-    function onUpdated(id: number, info: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab) {
+    function onUpdated(id: number, info: { status?: string }, tab: { url?: string }) {
       if (id !== tabId || info.status !== 'complete') return;
       if (tab.url && tab.url.includes('steamcommunity.com')) finish(() => resolve());
     }
 
-    chrome.tabs.onUpdated.addListener(onUpdated);
-    chrome.tabs.onRemoved.addListener(onRemoved);
-    void chrome.tabs.get(tabId, (tab) => {
-      if (chrome.runtime.lastError) {
-        finish(() => reject(new Error('Steam market tab was closed before it finished loading.')));
-        return;
-      }
-      if (tab.status === 'complete' && tab.url?.includes('steamcommunity.com')) {
-        finish(() => resolve());
-      }
-    });
+    browser.tabs.onUpdated.addListener(onUpdated);
+    browser.tabs.onRemoved.addListener(onRemoved);
+    void browser.tabs.get(tabId)
+      .then((tab) => {
+        if (tab.status === 'complete' && tab.url?.includes('steamcommunity.com')) {
+          finish(() => resolve());
+        }
+      })
+      .catch(() => finish(() => reject(new Error('Steam market tab was closed before it finished loading.'))));
   });
 }
 
 async function openFreshSteamMarketTab(): Promise<number> {
-  const tab = await chrome.tabs.create({ url: 'https://steamcommunity.com/market/', active: false });
+  const tab = await browser.tabs.create({ url: 'https://steamcommunity.com/market/', active: false });
   if (tab.id == null) throw new Error('Could not open a Steam market tab');
   await waitForTabComplete(tab.id, LOAD_TIMEOUT_MS);
   await new Promise((r) => setTimeout(r, POST_LOAD_DELAY_MS));
@@ -111,7 +112,7 @@ async function openFreshSteamMarketTab(): Promise<number> {
 
 async function closeTabSafe(tabId: number): Promise<void> {
   try {
-    await chrome.tabs.remove(tabId);
+    await browser.tabs.remove(tabId);
   } catch {
     /* already closed */
   }
@@ -121,7 +122,9 @@ async function readMarketHistoryFromPageMain(
   expectedSteamId64: string,
   maxPages: number,
   count: number,
-  currencyMap: Record<string, SteamCurrencyCode>
+  currencyMap: Record<string, SteamCurrencyCode>,
+  pageDelayMs: number,
+  maxRetries: number
 ): Promise<PageMarketHistoryResult> {
   const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
   const text = (el: Element | null | undefined): string | null => {
@@ -387,9 +390,32 @@ async function readMarketHistoryFromPageMain(
             body: `sessionid=${encodeURIComponent(sessionId)}`,
           }
         : { method: 'GET', credentials: 'include' };
-      const res = await fetch(url, init);
-      requestsMade += 1;
-      if (!res.ok) return { ok: false, error: `Steam market history HTTP ${res.status}` };
+
+      let res: Response | null = null;
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        res = await fetch(url, init);
+        requestsMade += 1;
+        if (res.ok) break;
+
+        const retryable = res.status === 429 || res.status >= 500;
+        if (!retryable || attempt >= maxRetries) break;
+
+        const retryAfterSeconds = Number.parseInt(res.headers.get('Retry-After') ?? '', 10);
+        const retryAfterMs = Number.isFinite(retryAfterSeconds)
+          ? Math.min(60_000, Math.max(1_000, retryAfterSeconds * 1000))
+          : res.status === 429
+            ? 15_000 * (attempt + 1)
+            : 5_000 * (attempt + 1);
+        await sleep(retryAfterMs);
+      }
+
+      if (!res) return { ok: false, error: 'Steam market history fetch failed' };
+      if (!res.ok) {
+        return {
+          ok: false,
+          error: `Steam market history HTTP ${res.status} on page ${page + 1} after ${maxRetries + 1} attempts`,
+        };
+      }
       const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
       if (!json || (json.success !== true && json.success !== 1)) {
         return { ok: false, error: 'Steam did not return market history.' };
@@ -409,7 +435,7 @@ async function readMarketHistoryFromPageMain(
         completedNaturally = true;
         break;
       }
-      await sleep(1200);
+      await sleep(pageDelayMs);
     }
 
     return {
@@ -444,11 +470,18 @@ export async function fetchSteamMarketHistoryForSync(
 ): Promise<SteamMarketHistoryFetchResult> {
   const tabId = await openFreshSteamMarketTab();
   try {
-    const results = await chrome.scripting.executeScript({
+    const results = await browser.scripting.executeScript({
       target: { tabId },
       world: 'MAIN',
       func: readMarketHistoryFromPageMain,
-      args: [steamId64, MARKET_HISTORY_MAX_PAGES, MARKET_HISTORY_COUNT, STEAM_ECURRENCY_TO_ISO],
+      args: [
+        steamId64,
+        MARKET_HISTORY_MAX_PAGES,
+        MARKET_HISTORY_COUNT,
+        STEAM_ECURRENCY_TO_ISO,
+        MARKET_HISTORY_PAGE_DELAY_MS,
+        MARKET_HISTORY_MAX_RETRIES,
+      ],
     });
     const result = results[0]?.result as PageMarketHistoryResult | undefined;
     if (!result || !result.ok) throw new Error((result as { error?: string } | undefined)?.error || 'Steam market read failed');

@@ -64,6 +64,11 @@ export async function handleSyncTradeOffers(): Promise<{ ok: true; count: number
     return { ok: true, count } as const;
   };
 
+  const finishSkipped = () => {
+    resetTradeOffersSyncProgressIdle();
+    return { ok: true, count: 0 } as const;
+  };
+
   const pairings = await getPairings();
   if (pairings.length === 0) {
     return finishFail('Not paired');
@@ -80,8 +85,7 @@ export async function handleSyncTradeOffers(): Promise<{ ok: true; count: number
       );
     }
     if (!isSteamSyncEnabledForPairing(pairing)) {
-      resetTradeOffersSyncProgressIdle();
-      return { ok: true, count: 0 };
+      return finishSkipped();
     }
 
     setTradeOffersSyncProgress('fetching_history');

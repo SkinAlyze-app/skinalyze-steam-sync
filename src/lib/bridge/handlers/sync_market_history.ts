@@ -1,4 +1,5 @@
 import { apiPost, messageFromExtensionApiBody } from '@/lib/api';
+import { createSingleFlight } from '@/lib/single-flight';
 import { fetchSteamMarketHistoryForSync } from '@/lib/steam-market-history';
 import { getPairingForSteamId, getPairings, isSteamSyncEnabledForPairing, setLastError } from '@/lib/storage';
 import { detectLoggedInSteamId64 } from '@/lib/steam-detect';
@@ -33,6 +34,8 @@ function scheduleIdleReset(delayMs: number): void {
 }
 
 const UPLOAD_CHUNK = 200;
+type MarketHistorySyncResult = { ok: true; count: number } | { ok: false; error: string };
+const marketHistorySyncFlight = createSingleFlight<MarketHistorySyncResult>();
 
 function chunkArray<T>(arr: T[], size: number): T[][] {
   if (arr.length === 0) return [];
@@ -41,7 +44,7 @@ function chunkArray<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
-export async function handleSyncMarketHistory(): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
+async function runSyncMarketHistory(): Promise<MarketHistorySyncResult> {
   clearIdleResetTimer();
   resetMarketHistorySyncProgressIdle();
   setMarketHistorySyncProgress('checking_steam');
@@ -61,6 +64,11 @@ export async function handleSyncMarketHistory(): Promise<{ ok: true; count: numb
     return { ok: true, count } as const;
   };
 
+  const finishSkipped = () => {
+    resetMarketHistorySyncProgressIdle();
+    return { ok: true, count: 0 } as const;
+  };
+
   const pairings = await getPairings();
   if (pairings.length === 0) {
     return finishFail('Not paired');
@@ -77,8 +85,7 @@ export async function handleSyncMarketHistory(): Promise<{ ok: true; count: numb
       );
     }
     if (!isSteamSyncEnabledForPairing(pairing)) {
-      resetMarketHistorySyncProgressIdle();
-      return { ok: true, count: 0 };
+      return finishSkipped();
     }
 
     setMarketHistorySyncProgress('opening_market');
@@ -88,8 +95,16 @@ export async function handleSyncMarketHistory(): Promise<{ ok: true; count: numb
         setMarketHistorySyncProgress('fetching_history', `Pages ${p.page} · ${p.rows} supported rows`);
       });
     } catch (e) {
-      return finishFail(e instanceof Error ? e.message : 'Failed to fetch Steam market history');
+      const message = e instanceof Error ? e.message : 'Failed to fetch Steam market history';
+      console.warn('[SkinAlyze Sync] Steam market history fetch failed', message);
+      return finishFail(message);
     }
+    console.info('[SkinAlyze Sync] Steam market history fetched', {
+      rows: fetched.rows.length,
+      pages_fetched: fetched.meta.pages_fetched,
+      requests_made: fetched.meta.requests_made,
+      completed_naturally: fetched.meta.completed_naturally,
+    });
 
     const rowChunks = chunkArray(fetched.rows, UPLOAD_CHUNK);
     const batchCount = Math.max(1, rowChunks.length);
@@ -141,4 +156,8 @@ export async function handleSyncMarketHistory(): Promise<{ ok: true; count: numb
   } catch (e) {
     return finishFail(e instanceof Error ? e.message : 'Steam market history sync failed');
   }
+}
+
+export function handleSyncMarketHistory(): Promise<MarketHistorySyncResult> {
+  return marketHistorySyncFlight.run(runSyncMarketHistory);
 }

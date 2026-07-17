@@ -1,4 +1,5 @@
 import '@/content/skinalyze.css';
+import { browser } from '@/shared/browser-api';
 import { BANNER_HOST_ID } from '@/content/selectors';
 import {
   clearBadges,
@@ -9,10 +10,8 @@ import {
 import { mutationsAreOnlySkinalyze, observeInventoryMutations } from '@/content/observer';
 import type { ExtensionResponse } from '@/shared/types';
 
-function sendMessage<T>(msg: object): Promise<T> {
-  return new Promise((resolve) => {
-    chrome.runtime.sendMessage(msg, (r) => resolve(r as T));
-  });
+async function sendMessage<T>(msg: object): Promise<T> {
+  return await browser.runtime.sendMessage(msg) as T;
 }
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
