@@ -7,6 +7,7 @@ const require = createRequire(`${process.cwd()}/scripts/run-tests.js`);
 const { runBrowserCompatibilityTests } = require('./test-browser-compat.ts');
 const { runInspectMetadataTests } = require('./test-inspect.ts');
 const { runApiUrlTests } = require('./test-url-config.ts');
+const { runHeadlessSteamTests } = require('./test-headless-steam.ts');
 const { runMarketHistoryTests } = require('./test-market-history.ts');
 const { runPayloadShapeTests } = require('./test-message-shapes.ts');
 const { runPromiseTimeoutTests } = require('./test-promise-timeout.ts');
@@ -20,6 +21,7 @@ void (async () => {
   await runBrowserCompatibilityTests();
   runInspectMetadataTests();
   runApiUrlTests();
+  await runHeadlessSteamTests();
   runMarketHistoryTests();
   runPayloadShapeTests();
   await runPromiseTimeoutTests();

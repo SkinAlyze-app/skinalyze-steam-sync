@@ -7,7 +7,7 @@ const { version: expectedVersion } = JSON.parse(readFileSync('package.json', 'ut
 
 const chrome = JSON.parse(readFileSync('dist/chrome/manifest.json', 'utf8'));
 const firefox = JSON.parse(readFileSync('dist/firefox/manifest.json', 'utf8'));
-const expectedPermissions = ['storage', 'alarms', 'scripting', 'tabs'];
+const expectedBasePermissions = ['storage', 'alarms', 'scripting', 'tabs'];
 const expectedHosts = [
   'https://steamcommunity.com/*',
   'https://api.steampowered.com/*',
@@ -30,6 +30,9 @@ for (const path of proprietaryPaths) {
 assert.deepEqual(chrome.background, { service_worker: 'background.js' });
 assert.equal(chrome.browser_specific_settings, undefined);
 assert.equal(chrome.incognito, undefined);
+assert.deepEqual(chrome.permissions, [...expectedBasePermissions, 'offscreen']);
+assert.equal(existsSync('dist/chrome/offscreen/steam-market.html'), true);
+assert.equal(existsSync('dist/chrome/offscreen/steam-market.js'), true);
 
 assert.deepEqual(firefox.background, { scripts: ['background.js'] });
 assert.equal(firefox.background.service_worker, undefined);
@@ -45,10 +48,11 @@ assert.deepEqual(firefox.browser_specific_settings?.gecko?.data_collection_permi
   ],
   optional: ['technicalAndInteraction'],
 });
+assert.deepEqual(firefox.permissions, expectedBasePermissions);
+assert.equal(firefox.permissions.includes('offscreen'), false);
 
 for (const manifest of [chrome, firefox]) {
   assert.equal(manifest.version, expectedVersion);
-  assert.deepEqual(manifest.permissions, expectedPermissions);
   assert.deepEqual(manifest.host_permissions, expectedHosts);
   assert.equal(manifest.optional_host_permissions, undefined);
   assert.equal(manifest.content_scripts.length, 1);

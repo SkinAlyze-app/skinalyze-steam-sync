@@ -5,6 +5,11 @@
  */
 
 import { withTimeout } from '@/lib/promise-timeout';
+import {
+  HEADLESS_STEAM_ACCESS,
+  allowsSteamTabFallback,
+  type SteamAccessPolicy,
+} from '@/lib/steam-access';
 import { setInventorySyncProgress, type InventorySyncPhase } from '@/lib/sync-progress';
 import { browser } from '@/shared/browser-api';
 
@@ -62,15 +67,17 @@ type PageInvErr = { ok: false; error: string; assets: []; descriptions: [] };
 type PageInvResult = PageInvOk | PageInvErr;
 export type FetchInventoryViaTabOptions = {
   trackProgress?: boolean;
+  accessPolicy?: SteamAccessPolicy;
 };
 
 /**
  * Injected into the tab (MAIN world). Tries paginated JSON /inventory first; falls back to g_ActiveInventory.
  */
-async function readInventoryFromPageMain(
+export async function readInventoryFromPageMain(
   expectedSteamId64: string,
   appId: number,
-  contextId: number
+  contextId: number,
+  pageFallbackAvailable = true
 ): Promise<PageInvResult> {
   const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
   const INVENTORY_JSON_REQUEST_TIMEOUT_MS = 20000;
@@ -219,6 +226,7 @@ async function readInventoryFromPageMain(
   }
 
   function isLikelyOwnInventory(): boolean {
+    if (!pageFallbackAvailable || typeof window === 'undefined') return true;
     const mine = expectedSteamId64.trim();
     const path = window.location.pathname || '';
     if (path.includes('/my/')) return true;
@@ -396,15 +404,19 @@ async function readInventoryFromPageMain(
     if (/^\d{10,20}$/.test(steamId)) {
       const mergedByAsset = new Map<string, RawSteamAsset>();
       const descMap = new Map<string, RawSteamDesc>();
+      let primaryError = '';
+      let primarySucceeded = false;
 
       try {
         const primary = await fetchContextFully(steamId, appId, contextId);
+        primarySucceeded = true;
         for (const a of primary.assets) mergedByAsset.set(a.assetid, a);
         for (const d of primary.descriptions) {
           descMap.set(`${d.classid}_${d.instanceid ?? '0'}`, d);
         }
-      } catch {
-        /* ctx 2 failed; try ctx 16 then legacy */
+      } catch (error) {
+        primaryError = error instanceof Error ? error.message : 'Steam did not return the main inventory.';
+        /* ctx 2 failed; try ctx 16 for diagnostics, then use the permitted fallback. */
       }
 
       if (isLikelyOwnInventory()) {
@@ -420,8 +432,16 @@ async function readInventoryFromPageMain(
       }
 
       const mergedAssets = [...mergedByAsset.values()];
-      if (mergedAssets.length > 0) {
+      if (primarySucceeded && mergedAssets.length > 0) {
         return { ok: true, assets: mergedAssets, descriptions: [...descMap.values()] };
+      }
+      if (!pageFallbackAvailable) {
+        return {
+          ok: false,
+          error: primaryError || 'Steam did not return your main inventory.',
+          assets: [],
+          descriptions: [],
+        };
       }
     }
   } catch {
@@ -825,7 +845,33 @@ export async function fetchInventoryViaTab(
   const reportProgress = (phase: InventorySyncPhase) => {
     if (options.trackProgress !== false) setInventorySyncProgress(phase);
   };
+  const accessPolicy = options.accessPolicy ?? HEADLESS_STEAM_ACCESS;
   const targetUrl = inventoryUrlForProfile(steamId64, appId, contextId);
+
+  reportProgress('reading_inventory');
+  let headlessResult: PageInvResult;
+  try {
+    headlessResult = await withTimeout(
+      readInventoryFromPageMain(steamId64, appId, contextId, false),
+      INVENTORY_READ_TIMEOUT_MS,
+      'Steam inventory background read timed out.'
+    );
+  } catch (error) {
+    headlessResult = {
+      ok: false,
+      error: error instanceof Error ? error.message : 'Steam inventory background read failed.',
+      assets: [],
+      descriptions: [],
+    };
+  }
+
+  if (headlessResult.ok) {
+    return { assets: headlessResult.assets, descriptions: headlessResult.descriptions };
+  }
+  if (!allowsSteamTabFallback(accessPolicy)) {
+    throw new Error(headlessResult.error || 'Steam inventory background read failed.');
+  }
+
   reportProgress('opening_steam_tab');
   const tabId = await openFreshSteamCommunityTab(targetUrl);
   try {
@@ -840,7 +886,7 @@ export async function fetchInventoryViaTab(
           target: { tabId },
           world: 'MAIN',
           func: readInventoryFromPageMain,
-          args: [steamId64, appId, contextId],
+          args: [steamId64, appId, contextId, true],
         }),
         INVENTORY_READ_TIMEOUT_MS,
         'Steam inventory read timed out. Open steamcommunity.com, load your Counter-Strike inventory, then sync again.'

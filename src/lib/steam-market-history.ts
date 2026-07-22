@@ -3,7 +3,14 @@ import {
   type SteamCurrencyCode,
   type ParsedSteamMoney,
 } from '@/lib/steam-market-history-parser';
+import {
+  HEADLESS_STEAM_ACCESS,
+  allowsSteamTabFallback,
+  type SteamAccessPolicy,
+} from '@/lib/steam-access';
 import { browser } from '@/shared/browser-api';
+
+declare const __TARGET_BROWSER__: 'chrome' | 'firefox' | undefined;
 
 const LOAD_TIMEOUT_MS = 15000;
 const POST_LOAD_DELAY_MS = 1200;
@@ -59,6 +66,37 @@ export type SteamMarketHistoryFetchResult = {
     count_per_request: number;
   };
 };
+
+export type SteamMarketPageBootstrap = {
+  steamId64: string;
+  sessionId: string;
+  walletInfo: Record<string, unknown>;
+};
+
+export function parseSteamMarketPageBootstrap(html: string): SteamMarketPageBootstrap {
+  const globalString = (name: string): string => {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = html.match(new RegExp(`${escaped}\\s*=\\s*['"]([^'"]+)['"]`, 'i'));
+    return String(match?.[1] ?? '').trim();
+  };
+  const walletMatch = html.match(/g_rgWalletInfo\s*=\s*(\{[^;]+\})\s*;/i);
+  let walletInfo: Record<string, unknown> = {};
+  if (walletMatch?.[1]) {
+    try {
+      const parsed = JSON.parse(walletMatch[1]) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        walletInfo = parsed as Record<string, unknown>;
+      }
+    } catch {
+      walletInfo = {};
+    }
+  }
+  return {
+    steamId64: globalString('g_steamID'),
+    sessionId: globalString('g_sessionID'),
+    walletInfo,
+  };
+}
 
 type PageMarketHistoryResult =
   | { ok: true; data: SteamMarketHistoryFetchResult }
@@ -118,15 +156,25 @@ async function closeTabSafe(tabId: number): Promise<void> {
   }
 }
 
-async function readMarketHistoryFromPageMain(
+export async function readMarketHistoryFromPageMain(
   expectedSteamId64: string,
   maxPages: number,
   count: number,
   currencyMap: Record<string, SteamCurrencyCode>,
   pageDelayMs: number,
-  maxRetries: number
+  maxRetries: number,
+  headless = false
 ): Promise<PageMarketHistoryResult> {
   const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+  const fetchWithTimeout = async (url: string, init: RequestInit, timeoutMs = 20_000): Promise<Response> => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...init, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
   const text = (el: Element | null | undefined): string | null => {
     const s = el?.textContent?.replace(/\u00a0/g, ' ').trim() ?? '';
     return s || null;
@@ -332,9 +380,9 @@ async function readMarketHistoryFromPageMain(
     });
     return out;
   };
-  const parsePendingFromPage = (): string | null => {
+  const parsePendingFromPage = (pageDocument: Document): string | null => {
     const candidates = Array.from(
-      document.querySelectorAll('[id*="pending"], [class*="pending"], [id*="delayed"], [class*="delayed"]')
+      pageDocument.querySelectorAll('[id*="pending"], [class*="pending"], [id*="delayed"], [class*="delayed"]')
     );
     for (const candidate of candidates) {
       const v = text(candidate);
@@ -344,35 +392,59 @@ async function readMarketHistoryFromPageMain(
   };
 
   try {
-    const w = window as unknown as {
-      g_steamID?: string;
-      g_sessionID?: string;
-      g_rgWalletInfo?: Record<string, unknown>;
-    };
-    const actualSteamId = String(w.g_steamID ?? '').trim();
+    let actualSteamId = '';
+    let sessionId = '';
+    let walletInfo: Record<string, unknown> = {};
+    let marketDocument: Document;
+
+    if (headless) {
+      const marketResponse = await fetchWithTimeout('https://steamcommunity.com/market/', {
+        credentials: 'include',
+        redirect: 'follow',
+        cache: 'no-store',
+      });
+      if (!marketResponse.ok) {
+        return { ok: false, error: `Steam market page HTTP ${marketResponse.status}` };
+      }
+      const marketHtml = await marketResponse.text();
+      const bootstrap = parseSteamMarketPageBootstrap(marketHtml);
+      actualSteamId = bootstrap.steamId64;
+      sessionId = bootstrap.sessionId;
+      walletInfo = bootstrap.walletInfo;
+      marketDocument = new DOMParser().parseFromString(marketHtml, 'text/html');
+    } else {
+      const w = window as unknown as {
+        g_steamID?: string;
+        g_sessionID?: string;
+        g_rgWalletInfo?: Record<string, unknown>;
+      };
+      actualSteamId = String(w.g_steamID ?? '').trim();
+      sessionId = String(w.g_sessionID ?? '').trim();
+      walletInfo = w.g_rgWalletInfo ?? {};
+      marketDocument = document;
+    }
+
     if (!actualSteamId) return { ok: false, error: 'Not logged into Steam in this browser.' };
     if (expectedSteamId64 && actualSteamId !== expectedSteamId64) {
       return { ok: false, error: `Wrong Steam account (browser: ${actualSteamId}).` };
     }
 
-    const walletInfo = w.g_rgWalletInfo ?? {};
     const walletCurrencyIdRaw = Number(walletInfo.wallet_currency);
     const walletCurrencyId = Number.isFinite(walletCurrencyIdRaw) ? Math.floor(walletCurrencyIdRaw) : null;
     const walletCurrency = steamCurrencyCodeFromId(walletCurrencyId);
-    const rawAvailable = text(document.querySelector('#header_wallet_balance'));
+    const rawAvailable = text(marketDocument.querySelector('#header_wallet_balance'));
     const walletBalanceRaw = Number(walletInfo.wallet_balance);
     const available =
       Number.isFinite(walletBalanceRaw) && walletBalanceRaw >= 0
         ? Math.round(walletBalanceRaw) / 100
         : parseMoney(rawAvailable)?.price_numeric ?? null;
-    const rawPending = parsePendingFromPage();
+    const rawPending = parsePendingFromPage(marketDocument);
     const delayedRaw = Number(walletInfo.wallet_delayed_balance);
     const pending =
       Number.isFinite(delayedRaw) && delayedRaw >= 0
         ? Math.round(delayedRaw) / 100
         : parseMoney(rawPending)?.price_numeric ?? 0;
 
-    const sessionId = String(w.g_sessionID ?? '').trim();
     const rowsByKey = new Map<string, SteamMarketHistoryRowForSync>();
     let requestsMade = 0;
     let pagesFetched = 0;
@@ -393,7 +465,7 @@ async function readMarketHistoryFromPageMain(
 
       let res: Response | null = null;
       for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        res = await fetch(url, init);
+        res = await fetchWithTimeout(url, init);
         requestsMade += 1;
         if (res.ok) break;
 
@@ -464,10 +536,113 @@ async function readMarketHistoryFromPageMain(
   }
 }
 
+export async function fetchSteamMarketHistoryHeadlesslyInDocument(
+  steamId64: string
+): Promise<SteamMarketHistoryFetchResult> {
+  const result = await readMarketHistoryFromPageMain(
+    steamId64,
+    MARKET_HISTORY_MAX_PAGES,
+    MARKET_HISTORY_COUNT,
+    STEAM_ECURRENCY_TO_ISO,
+    MARKET_HISTORY_PAGE_DELAY_MS,
+    MARKET_HISTORY_MAX_RETRIES,
+    true
+  );
+  if (!result.ok) throw new Error(result.error || 'Steam market background read failed');
+  return result.data;
+}
+
+type ChromeOffscreenApi = {
+  runtime?: {
+    getContexts?: (filter: { contextTypes: string[]; documentUrls: string[] }) => Promise<unknown[]>;
+  };
+  offscreen?: {
+    createDocument: (options: { url: string; reasons: string[]; justification: string }) => Promise<void>;
+    closeDocument: () => Promise<void>;
+  };
+};
+
+type OffscreenMarketResponse =
+  | { ok: true; data: SteamMarketHistoryFetchResult }
+  | { ok: false; error: string };
+
+const OFFSCREEN_MARKET_PATH = 'offscreen/steam-market.html';
+let creatingOffscreenDocument: Promise<void> | null = null;
+
+function chromeOffscreenApi(): ChromeOffscreenApi | null {
+  return ((globalThis as typeof globalThis & { chrome?: ChromeOffscreenApi }).chrome ?? null);
+}
+
+async function ensureChromeOffscreenDocument(): Promise<void> {
+  const chromeApi = chromeOffscreenApi();
+  if (!chromeApi?.offscreen) throw new Error('Chrome offscreen parsing is unavailable.');
+  const documentUrl = browser.runtime.getURL(OFFSCREEN_MARKET_PATH);
+  const contexts = chromeApi.runtime?.getContexts
+    ? await chromeApi.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'], documentUrls: [documentUrl] })
+    : [];
+  if (contexts.length > 0) return;
+  if (!creatingOffscreenDocument) {
+    creatingOffscreenDocument = chromeApi.offscreen.createDocument({
+      url: OFFSCREEN_MARKET_PATH,
+      reasons: ['DOM_PARSER'],
+      justification: 'Parse authenticated Steam market history without opening a visible browser tab.',
+    }).catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      // Chrome 109-115 cannot query offscreen contexts. Reuse a document left by an earlier worker.
+      if (!/single offscreen|already exists|only one offscreen/i.test(message)) throw error;
+    }).finally(() => {
+      creatingOffscreenDocument = null;
+    });
+  }
+  await creatingOffscreenDocument;
+}
+
+async function fetchSteamMarketHistoryViaChromeOffscreen(
+  steamId64: string
+): Promise<SteamMarketHistoryFetchResult> {
+  await ensureChromeOffscreenDocument();
+  const chromeApi = chromeOffscreenApi();
+  try {
+    const response = await browser.runtime.sendMessage({
+      target: 'skinalyze-steam-market-offscreen',
+      type: 'FETCH_STEAM_MARKET_HISTORY_HEADLESS',
+      steamId64,
+    }) as OffscreenMarketResponse | undefined;
+    if (!response?.ok) throw new Error(response?.error || 'Steam market offscreen parser did not respond.');
+    return response.data;
+  } finally {
+    await chromeApi?.offscreen?.closeDocument().catch(() => undefined);
+  }
+}
+
+async function fetchSteamMarketHistoryHeadlessly(
+  steamId64: string
+): Promise<SteamMarketHistoryFetchResult> {
+  const target = typeof __TARGET_BROWSER__ === 'string' ? __TARGET_BROWSER__ : 'chrome';
+  if (target === 'firefox') return fetchSteamMarketHistoryHeadlesslyInDocument(steamId64);
+  return fetchSteamMarketHistoryViaChromeOffscreen(steamId64);
+}
+
+export type FetchSteamMarketHistoryOptions = {
+  accessPolicy?: SteamAccessPolicy;
+  onProgress?: (p: { page: number; rows: number }) => void;
+  onTabFallback?: () => void;
+};
+
 export async function fetchSteamMarketHistoryForSync(
   steamId64: string,
-  onProgress?: (p: { page: number; rows: number }) => void
+  options: FetchSteamMarketHistoryOptions = {}
 ): Promise<SteamMarketHistoryFetchResult> {
+  const accessPolicy = options.accessPolicy ?? HEADLESS_STEAM_ACCESS;
+  try {
+    const data = await fetchSteamMarketHistoryHeadlessly(steamId64);
+    options.onProgress?.({ page: data.meta.pages_fetched, rows: data.rows.length });
+    return data;
+  } catch (headlessError) {
+    if (!allowsSteamTabFallback(accessPolicy)) throw headlessError;
+  }
+
+  options.onTabFallback?.();
   const tabId = await openFreshSteamMarketTab();
   try {
     const results = await browser.scripting.executeScript({
@@ -481,11 +656,12 @@ export async function fetchSteamMarketHistoryForSync(
         STEAM_ECURRENCY_TO_ISO,
         MARKET_HISTORY_PAGE_DELAY_MS,
         MARKET_HISTORY_MAX_RETRIES,
+        false,
       ],
     });
     const result = results[0]?.result as PageMarketHistoryResult | undefined;
     if (!result || !result.ok) throw new Error((result as { error?: string } | undefined)?.error || 'Steam market read failed');
-    onProgress?.({ page: result.data.meta.pages_fetched, rows: result.data.rows.length });
+    options.onProgress?.({ page: result.data.meta.pages_fetched, rows: result.data.rows.length });
     return result.data;
   } finally {
     await closeTabSafe(tabId);

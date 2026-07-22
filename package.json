@@ -1,6 +1,6 @@
 {
   "name": "skinalyze-sync-extension",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "SkinAlyze Sync — open-source Chrome and Firefox MV3 Steam sync component for SkinAlyze.",
   "license": "MIT",
   "keywords": [

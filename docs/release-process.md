@@ -21,8 +21,8 @@ npm run package:release
 
 Verify both manifests before publishing:
 
-- Chrome uses only `background.service_worker`.
-- Firefox uses only `background.scripts`, Gecko ID `skinalyze-sync@skinalyze.app`, Firefox minimum `140.0`, and the documented data-collection declarations.
+- Chrome uses only `background.service_worker` and includes the `offscreen` permission for hidden market-history parsing.
+- Firefox uses only `background.scripts`, omits the Chrome-only `offscreen` permission, uses Gecko ID `skinalyze-sync@skinalyze.app`, requires Firefox `140.0`, and includes the documented data-collection declarations.
 - Both include only the expected SkinAlyze API origin, Steam Community, and Steam Web API host permissions.
 - No manifest contains `__API_ORIGIN__`, a localhost production origin, `<all_urls>`, or marketplace hosts.
 

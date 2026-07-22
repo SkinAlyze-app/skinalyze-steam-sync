@@ -34,6 +34,7 @@ All requests use `credentials: 'omit'` and send a **JSON body** or query as docu
 - **Inventory sync**: normalized inventory rows (asset id, class/instance ids, market name, tradability, icon URL, optional lock hints, etc.) (`POST /api/extension/inventory/sync`).
 - **Inventory status badges** on the Steam inventory page: **asset id list** to resolve link status (`POST /api/extension/inventory/status`).
 - **Trade sync**: normalized **offer** and **trade history** summary rows returned from Steam APIs, plus **client-side metadata** about pagination (pages fetched, counts) (`POST /api/extension/trade-offers/sync`). This runs automatically after pairing (see **Automatic sync** below), not only when you press Manual sync in the popup.
+- **Market-history sync**: normalized supported Steam Community Market history rows plus pagination counts (`POST /api/extension/market-history/sync`). Raw Steam page HTML and session values are not uploaded.
 
 ### Firefox data-consent categories
 
@@ -59,10 +60,11 @@ Firefox 140+ displays Mozilla's built-in data-collection consent during installa
 
 After you pair with SkinAlyze, the extension keeps your account updated **without** requiring you to click sync every time while **Steam sync** is enabled in the popup:
 
-1. **Periodic background sync (about every 20 minutes):** While paired, the extension syncs **inventory** and **trade-offer / trade-history summaries** to SkinAlyze on a fixed interval using browser alarms.
-2. **Page-triggered sync:** When you finish loading a relevant **Steam Community inventory** or **trade offers** page in the same browser, the extension may run the same sync again after a short cooldown (typically a few minutes) so normal browsing stays up to date.
-3. **Manual sync:** The popup **Manual sync** button still runs inventory and trade sync on demand while Steam sync is enabled; automatic behavior continues afterward.
-4. **Pause control:** Turning Steam sync off pauses manual, periodic, and page-triggered Steam sync for the active paired Steam account until you turn it back on.
+1. **Periodic background sync (about every 20 minutes):** While paired, the extension syncs **inventory**, **trade-offer / trade-history summaries**, and supported **Steam market-history summaries** to SkinAlyze on a fixed interval using browser alarms.
+2. **Page-triggered sync:** When you finish loading a relevant **Steam Community inventory**, **trade offers**, or **market** page in the same browser, the extension may run the matching sync again after a short cooldown (typically a few minutes) so normal browsing stays up to date.
+3. **Headless automatic access:** Periodic and page-triggered syncs use authenticated background requests and do not create Steam tabs. Chrome parses market HTML in a hidden extension offscreen document; Firefox uses its background document.
+4. **Manual sync:** The popup **Manual sync** button still runs sync on demand while Steam sync is enabled. If Steam rejects a background request, this explicit action may briefly open an inactive Steam tab that is automatically closed after the read.
+5. **Pause control:** Turning Steam sync off pauses manual, periodic, and page-triggered Steam sync for the active paired Steam account until you turn it back on.
 
 **Purpose:** SkinAlyze features such as inventory review, trade reconciliation, and status badges need current summary data from Steam — not your login secrets.
 

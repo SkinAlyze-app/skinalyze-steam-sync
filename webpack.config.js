@@ -28,6 +28,7 @@ function buildManifest(content, target, apiOrigin) {
     };
   } else {
     manifest.background = { service_worker: 'background.js' };
+    if (!manifest.permissions.includes('offscreen')) manifest.permissions.push('offscreen');
   }
 
   return Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`);
@@ -47,6 +48,7 @@ module.exports = (env = {}) => {
       background: './src/background.ts',
       popup: './src/popup/popup.ts',
       'content/inventory': './src/content/inventory.ts',
+      'offscreen/steam-market': './src/offscreen/steam-market.ts',
     },
     output: {
       path: path.resolve(__dirname, 'dist', target),
@@ -94,6 +96,7 @@ module.exports = (env = {}) => {
           { from: 'icons', to: 'icons', noErrorOnMissing: true },
           { from: 'src/popup/popup.html', to: 'popup/popup.html' },
           { from: 'src/popup/popup.css', to: 'popup/popup.css' },
+          { from: 'src/offscreen/steam-market.html', to: 'offscreen/steam-market.html' },
         ],
       }),
     ],

@@ -1,6 +1,7 @@
 import { handleSyncInventory } from '@/lib/bridge/handlers/sync_inventory';
 import { handleSyncTradeOffers } from '@/lib/bridge/handlers/sync_trade_offers';
 import { handleSyncMarketHistory } from '@/lib/bridge/handlers/sync_market_history';
+import { HEADLESS_STEAM_ACCESS, type SteamAccessPolicy } from '@/lib/steam-access';
 import {
   resetInventorySyncProgressIdle,
   resetMarketHistorySyncProgressIdle,
@@ -16,12 +17,14 @@ export type SyncAllResult =
     }
   | { ok: false; error: string };
 
-export async function handleSyncAll(): Promise<SyncAllResult> {
+export async function handleSyncAll(
+  accessPolicy: SteamAccessPolicy = HEADLESS_STEAM_ACCESS
+): Promise<SyncAllResult> {
   resetInventorySyncProgressIdle();
   resetTradeOffersSyncProgressIdle();
   resetMarketHistorySyncProgressIdle();
 
-  const inventory = await handleSyncInventory();
+  const inventory = await handleSyncInventory(accessPolicy);
   if (!inventory.ok) return { ok: false, error: inventory.error };
   const inventoryData = inventory.data as { skipped?: boolean; reason?: string } | null | undefined;
   if (inventoryData?.skipped && inventoryData.reason === 'steam_sync_disabled') {
@@ -33,10 +36,10 @@ export async function handleSyncAll(): Promise<SyncAllResult> {
     };
   }
 
-  const tradeOffers = await handleSyncTradeOffers();
+  const tradeOffers = await handleSyncTradeOffers(accessPolicy);
   if (!tradeOffers.ok) return { ok: false, error: tradeOffers.error };
 
-  const marketHistory = await handleSyncMarketHistory();
+  const marketHistory = await handleSyncMarketHistory(accessPolicy);
   if (!marketHistory.ok) return { ok: false, error: marketHistory.error };
 
   return {

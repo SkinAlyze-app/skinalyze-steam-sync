@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SkinAlyze Sync",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Sync your Steam Counter-Strike inventory with SkinAlyze (skinalyze.app) for reconciliation and trade awareness.",
   "permissions": ["storage", "alarms", "scripting", "tabs"],
   "host_permissions": [

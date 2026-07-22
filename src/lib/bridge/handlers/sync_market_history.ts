@@ -4,6 +4,11 @@ import { fetchSteamMarketHistoryForSync } from '@/lib/steam-market-history';
 import { getPairingForSteamId, getPairings, isSteamSyncEnabledForPairing, setLastError } from '@/lib/storage';
 import { detectLoggedInSteamId64 } from '@/lib/steam-detect';
 import {
+  HEADLESS_STEAM_ACCESS,
+  automaticSteamRetryMessage,
+  type SteamAccessPolicy,
+} from '@/lib/steam-access';
+import {
   friendlyMarketHistorySyncError,
   resetMarketHistorySyncProgressIdle,
   setMarketHistorySyncProgress,
@@ -44,13 +49,14 @@ function chunkArray<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
-async function runSyncMarketHistory(): Promise<MarketHistorySyncResult> {
+async function runSyncMarketHistory(accessPolicy: SteamAccessPolicy): Promise<MarketHistorySyncResult> {
   clearIdleResetTimer();
   resetMarketHistorySyncProgressIdle();
   setMarketHistorySyncProgress('checking_steam');
 
   const finishFail = async (msg: string) => {
-    const friendly = friendlyMarketHistorySyncError(msg);
+    const base = friendlyMarketHistorySyncError(msg);
+    const friendly = accessPolicy === HEADLESS_STEAM_ACCESS ? automaticSteamRetryMessage(base) : base;
     setMarketHistorySyncProgress('failed', friendly);
     await setLastError(friendly);
     scheduleIdleReset(IDLE_RESET_MS + 800);
@@ -75,7 +81,7 @@ async function runSyncMarketHistory(): Promise<MarketHistorySyncResult> {
   }
 
   try {
-    const detected = await detectLoggedInSteamId64().catch(() => null);
+    const detected = await detectLoggedInSteamId64(accessPolicy).catch(() => null);
     const pairing = await getPairingForSteamId(detected);
     if (!pairing) {
       return finishFail(
@@ -88,11 +94,17 @@ async function runSyncMarketHistory(): Promise<MarketHistorySyncResult> {
       return finishSkipped();
     }
 
-    setMarketHistorySyncProgress('opening_market');
+    setMarketHistorySyncProgress('fetching_history', 'Reading Steam market history in the background…');
     let fetched;
     try {
-      fetched = await fetchSteamMarketHistoryForSync(pairing.steam_id64, (p) => {
-        setMarketHistorySyncProgress('fetching_history', `Pages ${p.page} · ${p.rows} supported rows`);
+      fetched = await fetchSteamMarketHistoryForSync(pairing.steam_id64, {
+        accessPolicy,
+        onTabFallback: () => {
+          setMarketHistorySyncProgress('opening_market', 'Background read unavailable · opening a temporary Steam tab…');
+        },
+        onProgress: (p) => {
+          setMarketHistorySyncProgress('fetching_history', `Pages ${p.page} · ${p.rows} supported rows`);
+        },
       });
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to fetch Steam market history';
@@ -158,6 +170,8 @@ async function runSyncMarketHistory(): Promise<MarketHistorySyncResult> {
   }
 }
 
-export function handleSyncMarketHistory(): Promise<MarketHistorySyncResult> {
-  return marketHistorySyncFlight.run(runSyncMarketHistory);
+export function handleSyncMarketHistory(
+  accessPolicy: SteamAccessPolicy = HEADLESS_STEAM_ACCESS
+): Promise<MarketHistorySyncResult> {
+  return marketHistorySyncFlight.run(() => runSyncMarketHistory(accessPolicy));
 }
