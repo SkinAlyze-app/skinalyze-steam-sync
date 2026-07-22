@@ -8,6 +8,12 @@ import {
   setLastError,
 } from '@/lib/storage';
 import { detectLoggedInSteamId64 } from '@/lib/steam-detect';
+import { createSingleFlight } from '@/lib/single-flight';
+import {
+  HEADLESS_STEAM_ACCESS,
+  automaticSteamRetryMessage,
+  type SteamAccessPolicy,
+} from '@/lib/steam-access';
 import {
   friendlyInventorySyncError,
   resetInventorySyncProgressIdle,
@@ -22,6 +28,8 @@ function randomIdem(prefix: string): string {
 
 const IDLE_RESET_MS = TERMINAL_TTL_MS;
 let idleResetTimer: ReturnType<typeof setTimeout> | null = null;
+type InventorySyncResult = { ok: true; data: unknown } | { ok: false; error: string };
+const inventorySyncFlight = createSingleFlight<InventorySyncResult>();
 
 function clearIdleResetTimer(): void {
   if (idleResetTimer != null) {
@@ -38,13 +46,14 @@ function scheduleIdleReset(delayMs: number): void {
   }, delayMs);
 }
 
-export async function handleSyncInventory(): Promise<{ ok: true; data: unknown } | { ok: false; error: string }> {
+async function runSyncInventory(accessPolicy: SteamAccessPolicy): Promise<InventorySyncResult> {
   clearIdleResetTimer();
   resetInventorySyncProgressIdle();
   setInventorySyncProgress('checking_steam');
 
   const finishFail = async (msg: string) => {
-    const friendly = friendlyInventorySyncError(msg);
+    const base = friendlyInventorySyncError(msg);
+    const friendly = accessPolicy === HEADLESS_STEAM_ACCESS ? automaticSteamRetryMessage(base) : base;
     setInventorySyncProgress('failed', friendly);
     await setLastError(friendly);
     scheduleIdleReset(IDLE_RESET_MS + 800);
@@ -79,7 +88,7 @@ export async function handleSyncInventory(): Promise<{ ok: true; data: unknown }
   try {
     let detected: string | null = null;
     try {
-      detected = await detectLoggedInSteamId64();
+      detected = await detectLoggedInSteamId64(accessPolicy);
     } catch {
       detected = null;
     }
@@ -97,7 +106,7 @@ export async function handleSyncInventory(): Promise<{ ok: true; data: unknown }
 
     let items;
     try {
-      items = await fetchCs2Inventory(pairing.steam_id64);
+      items = await fetchCs2Inventory(pairing.steam_id64, { accessPolicy });
     } catch (e) {
       const raw = e instanceof Error ? e.message : 'Inventory fetch failed';
       return finishFail(raw);
@@ -120,4 +129,10 @@ export async function handleSyncInventory(): Promise<{ ok: true; data: unknown }
     const raw = e instanceof Error ? e.message : 'Sync failed';
     return finishFail(raw);
   }
+}
+
+export function handleSyncInventory(
+  accessPolicy: SteamAccessPolicy = HEADLESS_STEAM_ACCESS
+): Promise<InventorySyncResult> {
+  return inventorySyncFlight.run(() => runSyncInventory(accessPolicy));
 }

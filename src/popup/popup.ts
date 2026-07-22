@@ -423,7 +423,7 @@ manualSyncBtn.addEventListener('click', async () => {
     return;
   }
 
-  setMsg('Starting manual sync...');
+  setMsg('Starting manual sync in the background. A temporary inactive Steam tab is used only if needed...');
   setSyncBusy(true);
 
   const res = await send<ExtensionResponse>({ type: 'SYNC_ALL' });

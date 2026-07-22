@@ -2,6 +2,12 @@ import { apiPost, messageFromExtensionApiBody } from '@/lib/api';
 import { fetchTradeOffersAndHistoryForSync } from '@/lib/steam-trade';
 import { getPairingForSteamId, getPairings, isSteamSyncEnabledForPairing, setLastError } from '@/lib/storage';
 import { detectLoggedInSteamId64 } from '@/lib/steam-detect';
+import { createSingleFlight } from '@/lib/single-flight';
+import {
+  HEADLESS_STEAM_ACCESS,
+  automaticSteamRetryMessage,
+  type SteamAccessPolicy,
+} from '@/lib/steam-access';
 import {
   friendlyTradeOffersSyncError,
   resetTradeOffersSyncProgressIdle,
@@ -16,6 +22,8 @@ function randomIdem(prefix: string): string {
 
 const IDLE_RESET_MS = TERMINAL_TTL_MS;
 let idleResetTimer: ReturnType<typeof setTimeout> | null = null;
+type TradeOffersSyncResult = { ok: true; count: number } | { ok: false; error: string };
+const tradeOffersSyncFlight = createSingleFlight<TradeOffersSyncResult>();
 
 function clearIdleResetTimer(): void {
   if (idleResetTimer != null) {
@@ -44,13 +52,14 @@ function chunkArray<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
-export async function handleSyncTradeOffers(): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
+async function runSyncTradeOffers(accessPolicy: SteamAccessPolicy): Promise<TradeOffersSyncResult> {
   clearIdleResetTimer();
   resetTradeOffersSyncProgressIdle();
   setTradeOffersSyncProgress('checking_steam');
 
   const finishFail = async (msg: string) => {
-    const friendly = friendlyTradeOffersSyncError(msg);
+    const base = friendlyTradeOffersSyncError(msg);
+    const friendly = accessPolicy === HEADLESS_STEAM_ACCESS ? automaticSteamRetryMessage(base) : base;
     setTradeOffersSyncProgress('failed', friendly);
     await setLastError(friendly);
     scheduleIdleReset(IDLE_RESET_MS + 800);
@@ -75,7 +84,7 @@ export async function handleSyncTradeOffers(): Promise<{ ok: true; count: number
   }
 
   try {
-    const detected = await detectLoggedInSteamId64().catch(() => null);
+    const detected = await detectLoggedInSteamId64(accessPolicy).catch(() => null);
     const pairing = await getPairingForSteamId(detected);
     if (!pairing) {
       return finishFail(
@@ -190,4 +199,10 @@ export async function handleSyncTradeOffers(): Promise<{ ok: true; count: number
     const raw = e instanceof Error ? e.message : 'Trade offer sync failed';
     return finishFail(raw);
   }
+}
+
+export function handleSyncTradeOffers(
+  accessPolicy: SteamAccessPolicy = HEADLESS_STEAM_ACCESS
+): Promise<TradeOffersSyncResult> {
+  return tradeOffersSyncFlight.run(() => runSyncTradeOffers(accessPolicy));
 }

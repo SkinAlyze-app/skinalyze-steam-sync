@@ -68,7 +68,7 @@ const state: SyncProgressState = {
 const INV_LABELS: Record<InventorySyncPhase, string> = {
   idle: '',
   checking_steam: 'Checking Steam login…',
-  opening_steam_tab: 'Opening Counter-Strike inventory tab…',
+  opening_steam_tab: 'Background read unavailable · opening a temporary inventory tab…',
   waiting_for_inventory_page: 'Waiting for Steam page…',
   reading_inventory: 'Reading inventory from Steam…',
   uploading_inventory: 'Uploading to SkinAlyze…',
@@ -112,7 +112,7 @@ const TO_PCT: Record<TradeOffersSyncPhase, number> = {
 const MH_LABELS: Record<MarketHistorySyncPhase, string> = {
   idle: '',
   checking_steam: 'Checking Steam login…',
-  opening_market: 'Opening Steam Market…',
+  opening_market: 'Background read unavailable · opening a temporary Steam Market tab…',
   fetching_history: 'Fetching Steam market history…',
   uploading_history: 'Uploading market history…',
   uploading_batch: 'Uploading market history batch…',

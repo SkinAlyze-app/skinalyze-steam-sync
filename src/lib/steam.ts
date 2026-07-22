@@ -1,6 +1,7 @@
 import { CS2_APP_ID, CS2_CONTEXT_ID } from '@/shared/constants';
 import { enrichSteamAssetMetadata } from '@/lib/inspect-metadata';
 import { fetchInventoryViaTab, type RawSteamAsset, type RawSteamDesc } from '@/lib/steam-tab-fetch';
+import { HEADLESS_STEAM_ACCESS, type SteamAccessPolicy } from '@/lib/steam-access';
 import { getLastInventorySyncItemCount, setLastInventorySyncItemCount } from '@/lib/storage';
 import type { SteamInventoryItem } from '@/shared/types';
 
@@ -11,6 +12,7 @@ type SteamAsset = RawSteamAsset;
 type SteamDesc = RawSteamDesc;
 export type FetchCs2InventoryOptions = {
   trackProgress?: boolean;
+  accessPolicy?: SteamAccessPolicy;
 };
 
 const SKIP_TYPES = new Set(['CSGO_Type_StorageUnit']);
@@ -131,11 +133,12 @@ export async function fetchCs2Inventory(
   steamId64: string,
   options: FetchCs2InventoryOptions = {}
 ): Promise<SteamInventoryItem[]> {
+  const accessPolicy = options.accessPolicy ?? HEADLESS_STEAM_ACCESS;
   const { assets: rawAssets, descriptions: rawDescs } = await fetchInventoryViaTab(
     steamId64,
     CS2_APP_ID,
     CS2_CONTEXT_ID,
-    options
+    { ...options, accessPolicy }
   );
 
   if (DEBUG_LOGS) {

@@ -9,6 +9,7 @@ import { handleSyncMarketHistory } from '@/lib/bridge/handlers/sync_market_histo
 import { handleSyncAll, type SyncAllResult } from '@/lib/bridge/handlers/sync_all';
 import { applyPeriodicSyncAlarm, registerPeriodicSync, onAlarm } from '@/lib/alarms';
 import { getAutomationSettings, getStorage, setSteamSyncEnabled } from '@/lib/storage';
+import { HEADLESS_STEAM_ACCESS, MANUAL_STEAM_ACCESS } from '@/lib/steam-access';
 import { getHydratedSyncProgress } from '@/lib/sync-progress';
 import { createSingleFlight } from '@/lib/single-flight';
 import type { ExtensionMessage, ExtensionResponse } from '@/shared/types';
@@ -49,16 +50,16 @@ async function dispatch(msg: ExtensionMessage): Promise<ExtensionResponse> {
         return { ok: true, data: r };
       }
       case 'DETECT_STEAM': {
-        const data = await detectSteamFlight.run(handleDetectSteam);
+        const data = await detectSteamFlight.run(() => handleDetectSteam(MANUAL_STEAM_ACCESS));
         return { ok: true, data };
       }
       case 'SYNC_ALL': {
-        const run = syncAllFlight.start(handleSyncAll);
+        const run = syncAllFlight.start(() => handleSyncAll(MANUAL_STEAM_ACCESS));
         void run.promise.catch(() => undefined);
         return { ok: true, data: { started: run.started, already_running: !run.started } };
       }
       case 'SYNC_INVENTORY': {
-        const r = await handleSyncInventory();
+        const r = await handleSyncInventory(MANUAL_STEAM_ACCESS);
         return r.ok ? { ok: true, data: r.data } : { ok: false, error: r.error };
       }
       case 'GET_SYNC_PROGRESS': {
@@ -71,11 +72,11 @@ async function dispatch(msg: ExtensionMessage): Promise<ExtensionResponse> {
         return { ok: true, data: r };
       }
       case 'SYNC_TRADE_OFFERS': {
-        const r = await handleSyncTradeOffers();
+        const r = await handleSyncTradeOffers(MANUAL_STEAM_ACCESS);
         return r.ok ? { ok: true, data: r } : { ok: false, error: r.error };
       }
       case 'SYNC_MARKET_HISTORY': {
-        const r = await handleSyncMarketHistory();
+        const r = await handleSyncMarketHistory(MANUAL_STEAM_ACCESS);
         return r.ok ? { ok: true, data: r } : { ok: false, error: r.error };
       }
       default:
@@ -87,6 +88,13 @@ async function dispatch(msg: ExtensionMessage): Promise<ExtensionResponse> {
 }
 
 browser.runtime.onMessage.addListener((rawMessage: unknown, sender: { tab?: { id?: number } }) => {
+  if (
+    rawMessage &&
+    typeof rawMessage === 'object' &&
+    (rawMessage as { target?: string }).target === 'skinalyze-steam-market-offscreen'
+  ) {
+    return undefined;
+  }
   const message = rawMessage as ExtensionMessage;
   if (message.type === 'EXECUTE_PAGE_STEAM') {
     const tabId = sender.tab?.id;
@@ -127,9 +135,9 @@ onAlarm(async () => {
   if (st.pairings.length === 0) return;
   const s = await getAutomationSettings();
   if (!s.autoSyncEnabled) return;
-  if (s.autoSyncInventory) await handleSyncInventory();
-  if (s.autoSyncOffers) await handleSyncTradeOffers();
-  if (s.autoSyncMarketHistory) await handleSyncMarketHistory();
+  if (s.autoSyncInventory) await handleSyncInventory(HEADLESS_STEAM_ACCESS);
+  if (s.autoSyncOffers) await handleSyncTradeOffers(HEADLESS_STEAM_ACCESS);
+  if (s.autoSyncMarketHistory) await handleSyncMarketHistory(HEADLESS_STEAM_ACCESS);
 });
 
 browser.tabs.onUpdated.addListener((tabId, info, tab) => {
@@ -155,17 +163,17 @@ browser.tabs.onUpdated.addListener((tabId, info, tab) => {
     if (auto.autoSyncInventory && invPath) {
       if (now - lastHybridInv < auto.hybridCooldownMs) return;
       lastHybridInv = now;
-      await handleSyncInventory();
+      await handleSyncInventory(HEADLESS_STEAM_ACCESS);
     }
     if (auto.autoSyncOffers && offersPath) {
       if (now - lastHybridOffers < auto.hybridCooldownMs) return;
       lastHybridOffers = now;
-      await handleSyncTradeOffers();
+      await handleSyncTradeOffers(HEADLESS_STEAM_ACCESS);
     }
     if (auto.autoSyncMarketHistory && marketPath) {
       if (now - lastHybridMarketHistory < auto.hybridCooldownMs) return;
       lastHybridMarketHistory = now;
-      await handleSyncMarketHistory();
+      await handleSyncMarketHistory(HEADLESS_STEAM_ACCESS);
     }
   })();
 });

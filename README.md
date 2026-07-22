@@ -31,9 +31,10 @@ Official releases are distributed through the [Chrome Web Store](https://chromew
 Once paired, sync runs **automatically** — you do not need to open the popup each time.
 
 - **Every 20 minutes** (background): inventory, trade-offer, and market-history summaries sync to SkinAlyze while the extension stays paired and Steam sync is enabled.
-- **When you open relevant Steam pages**: after you finish loading your Steam Community **inventory** or **trade offers** page, the extension may sync again (short cooldown between page-triggered runs).
+- **When you open relevant Steam pages**: after you finish loading your Steam Community **inventory**, **trade offers**, or **market** page, the extension may sync the matching data again (short cooldown between page-triggered runs).
 - **Steam sync toggle** in the popup pauses or resumes manual, periodic, and page-triggered Steam sync for the active paired Steam account.
 - **Manual sync** in the popup still works while Steam sync is enabled.
+- **No surprise Steam tabs**: periodic and page-triggered syncs use authenticated background requests. An explicit manual action may briefly open and automatically close an inactive Steam tab only if Steam rejects the background request.
 
 **What is synced:** summary and trading data SkinAlyze needs (inventory rows, offer/history summaries, link-status badges on Steam inventory pages).
 
@@ -51,9 +52,10 @@ Once paired, sync runs **automatically** — you do not need to open the popup e
 | Permission | Purpose |
 | --- | --- |
 | `storage` | Pairing token, last sync timestamps, and UI state in browser extension-local storage. |
-| `alarms` | Background sync about every **20 minutes** when paired (inventory + trade-offer summaries). |
-| `scripting` | Steam inventory reads and coordination from the Chrome service worker or Firefox background script. |
-| `tabs` | Open or query Steam Community tabs when needed for inventory/trade data collection. |
+| `alarms` | Background sync about every **20 minutes** when paired (inventory, trade-offer, and market-history summaries). |
+| `scripting` | Steam reads and coordination from the Chrome service worker or Firefox background script. |
+| `tabs` | Manual-only fallback when Steam rejects a background login, inventory, or market-history request; the temporary inactive tab is automatically closed. |
+| `offscreen` (Chrome only) | Parse Steam market-history HTML in a hidden extension document without opening a browser tab. Firefox performs the same parsing in its DOM-capable background document. |
 
 **Host permissions**
 
